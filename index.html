@@ -420,6 +420,7 @@ function scheduleSave() {
   saveTimer = setTimeout(persist, 700);
 }
 async function persist() {
+  saveTimer = null;
   if (S.demo) return;
   if (S.mode === 'db' && col) {
     try {
@@ -440,10 +441,14 @@ async function persist() {
       setStore('error', e?.code === 'invalid_argument' ? 'Read-only here: ask the owner for Contributor access' : 'Could not save — changes kept on this page');
     }
   } else {
-    lsSet({books: S.books, settings: S.settings});
-    setStore();
+    const ok = lsSet({books: S.books, settings: S.settings}) && !!lsGet();
+    if (ok) setStore(); else setStore('error', "This browser won't let the page save. Use Back up to keep your books.");
   }
 }
+// Save immediately if the page is closed or hidden before the short save delay runs
+const flushSave = () => { if (saveTimer) { clearTimeout(saveTimer); persist(); } };
+addEventListener('pagehide', flushSave);
+document.addEventListener('visibilitychange', () => { if (document.hidden) flushSave(); });
 function setStore(state, msg) {
   const el = $('#store'), sp = el.querySelector('span');
   el.className = 'store ' + (S.demo ? 'demo' : S.mode);
