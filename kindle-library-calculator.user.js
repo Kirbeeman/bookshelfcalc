@@ -1,8 +1,10 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.0
-// @description  Library value, reading time and a pile of shame for your Kindle books, kept in sync with your Goodreads shelves.
+// @version      1.1
+// @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
+// @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
+// @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
 // @match        https://www.goodreads.com/*
 // @match        https://read.amazon.com/kindle-library*
 // @match        https://read.amazon.co.uk/kindle-library*

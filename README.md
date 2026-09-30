@@ -69,7 +69,7 @@ You can also copy the file's contents, open the Tampermonkey dashboard, click th
 
 ### Updating
 
-Repeat step 3 with the new version. Your books and settings are kept.
+Tampermonkey updates the script by itself. It checks this GitHub repo about once a day and installs a new version whenever the `@version` number at the top of the script goes up. To update right away, open the Tampermonkey dashboard and click **Check for userscript updates** in the Utilities tab (or the menu). Your books and settings are kept.
 
 ---
 
