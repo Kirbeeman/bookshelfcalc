@@ -173,6 +173,7 @@ document.body.innerHTML = `<div class="wrap">
       </ol>
       <div class="code" style="margin-top:12px"><pre id="snippet"></pre><button type="button" class="btn small" id="copySnippet">Copy script</button></div>
       <p class="note" style="margin-top:8px">The script only reads your own library list, including how far you've read each book, which is how unread books are found automatically. It uses an unofficial Amazon page, so if it stops working, use the Goodreads or CSV route.</p>
+      <p class="note" style="margin-top:8px"><strong>Purchase dates from the Kindle app:</strong> if you use Kindle for PC, drop in <span class="num">KindleSyncMetadataCache.xml</span> from <span class="num">%LOCALAPPDATA%\\Amazon\\Kindle\\Cache</span> (paste that into the File Explorer address bar). It adds the date you bought each book.</p>
     </div>
     <div data-p="goodreads" hidden>
       <ol class="steps">
@@ -191,7 +192,7 @@ document.body.innerHTML = `<div class="wrap">
     <div data-p="csv" hidden>
       <p class="note" style="font-size:.88rem">Any CSV with a header row works. Recognised columns: <span class="num">title, author, asin, pages, price, date, status, progress, rating, source</span>. Status can be unread, reading, finished or abandoned. A backup file from this page also goes here.</p>
     </div>
-    <div class="drop" id="drop">Drop a .json or .csv file here, or <label style="color:var(--accent);cursor:pointer;text-decoration:underline">choose a file<input type="file" id="file" accept=".json,.csv,.txt,text/csv,application/json" hidden></label></div>
+    <div class="drop" id="drop">Drop a .json, .csv or .xml file here, or <label style="color:var(--accent);cursor:pointer;text-decoration:underline">choose a file<input type="file" id="file" accept=".json,.csv,.txt,.xml,text/csv,application/json,text/xml" hidden></label></div>
     <textarea id="paste" placeholder="…or paste the copied data here"></textarea>
     <label class="check"><input type="checkbox" id="replace"> Replace my current library instead of merging</label>
     <div class="dlg-foot"><span class="result" id="impResult"></span><button type="button" class="btn primary" id="doImport">Import</button></div>
@@ -920,6 +921,17 @@ function fromRows(rows, kind) {
 function parseInput(text) {
   text = text.trim();
   if (!text) throw new Error('Paste some data or choose a file first.');
+  if (text[0] === '<') {
+    const x = new DOMParser().parseFromString(text, 'text/xml');
+    const xt = (el, n) => (el.getElementsByTagName(n)[0]?.textContent || '').trim();
+    const metas = [...x.getElementsByTagName('meta_data')];
+    if (!metas.length) throw new Error('That XML file has no Kindle books in it. Use KindleSyncMetadataCache.xml from the Kindle app.');
+    const books = metas.filter(m => !/PDOC/i.test(xt(m, 'cde_contenttype'))).map(m => ({
+      asin: xt(m, 'ASIN'), title: xt(m, 'title'), author: cleanAuthor(xt(m, 'author')),
+      date: toDate(xt(m, 'purchase_date')), status: null, progress: null, source: null,
+    })).filter(b => b.title);
+    return {books, kind:'kindleapp'};
+  }
   if (text[0] === '{' || text[0] === '[') {
     const j = JSON.parse(text);
     if (Array.isArray(j)) return j[0]?.asin !== undefined || j[0]?.percentageRead !== undefined ? {books: fromKindle(j), kind:'kindle'} : {books: j, kind:'backup'};
