@@ -2,9 +2,10 @@
 
 A SteamDB-style calculator for your Kindle library. It shows how many books you own, what they're worth, how long it would take to read them all, and a **Shelf of Shame** of everything you bought but never opened.
 
-**The main way to use it** is a free browser add-on script that syncs itself from your Goodreads shelves and your Kindle library. There's nothing to download, export or upload: install it once, then just open the calculator.
+**Everything lives at https://bookshelf.kirbee213.tv.**
 
-If you can't install browser add-ons (or you're on a phone), there's also a website version at **https://bookshelf.kirbee213.tv** where you import a file instead.
+- **With the free sync script installed** (Tampermonkey), the site fills itself in from your Kindle library and your Goodreads shelves every time you open it. Nothing to download, export or upload, and no other site to visit.
+- **Without it** (or on a phone), the same site works from files you import.
 
 Your books are stored only in your own browser. Nothing is sent to a server, and nobody else who visits the site can see your library.
 
@@ -14,9 +15,9 @@ Your books are stored only in your own browser. Nothing is sent to a server, and
 
 - [What it shows](#what-it-shows)
 - [Two ways to use it](#two-ways-to-use-it)
-- [Main way: automatic sync (Tampermonkey)](#main-way-automatic-sync-tampermonkey)
+- [Automatic sync: install the script](#automatic-sync-install-the-script)
 - [What happens after you install the script](#what-happens-after-you-install-the-script)
-- [Alternative: the website (file import)](#alternative-the-website-file-import)
+- [Without the script: file import](#without-the-script-file-import)
 - [How Kindle and Goodreads books are matched](#how-kindle-and-goodreads-books-are-matched)
 - [Settings](#settings)
 - [Editing books by hand](#editing-books-by-hand)
@@ -43,21 +44,20 @@ Statuses are **Unread**, **Reading**, **Finished** and **Gave up**. Only **Unrea
 
 ## Two ways to use it
 
-| | **Automatic sync (recommended)** | Website |
+Both happen on the same page, **bookshelf.kirbee213.tv**. The script just adds automatic syncing to it.
+
+| | **With the sync script (recommended)** | Without it |
 | --- | --- | --- |
 | Install anything? | Tampermonkey browser extension, once | No |
-| How books get in | Syncs by itself from Goodreads and your Kindle library | You export and import files |
-| Read status | Pulled from your Goodreads shelves every time you open it | From a Goodreads CSV, or set by hand |
-| Where it lives | goodreads.com/kindle-calculator | bookshelf.kirbee213.tv |
+| How books get in | Syncs by itself from Goodreads and your Kindle library when you open the page | You export and import files |
+| Read status | From your Goodreads shelves, every time | From a Goodreads CSV, or set by hand |
 | Works on phones | No (desktop browsers only) | Yes |
-
-Use the automatic sync if you can. Use the website on a phone, or if you'd rather not install an extension.
 
 ---
 
-## Main way: automatic sync (Tampermonkey)
+## Automatic sync: install the script
 
-Everything below happens without any files. You never export, download or upload anything.
+Once it's installed you never export, download or upload anything.
 
 ### Install (one time)
 
@@ -75,50 +75,29 @@ Tampermonkey updates the script by itself. It checks this GitHub repo about once
 
 ## What happens after you install the script
 
-The script only runs on two sites: **goodreads.com** and **read.amazon.com/kindle-library**. It does nothing anywhere else.
+### Every time you open bookshelf.kirbee213.tv
 
-### 1. Visit your Kindle library once
+1. The page finds the script and shows **Sync now** and a status line under the title.
+2. The script reads your Goodreads **to-read**, **currently-reading** and **read** shelves. The status line shows progress, for example *Reading your Goodreads "read" shelf…*
+3. It reads your **Kindle library** list in pages of 50 (*Reading your Kindle library… 150 books*). To keep things quick it reuses the last copy for up to 6 hours. **Sync now** always fetches a fresh one.
+4. It **matches the two** (see the next section) and updates the numbers, charts and Shelf of Shame.
+5. Everything is saved in your browser for next time.
 
-Go to **https://read.amazon.com/kindle-library** while signed in.
+When it's done, the status line reads something like:
 
-- A small dark box appears in the bottom-right corner: **"Syncing your Kindle library… 150 books"**.
-- It reads your full library list in pages of 50. It only reads, and never changes anything in your Amazon account.
-- When it's done the box says **"Kindle library synced: 597 books. Open calculator"**.
-- The list is saved inside Tampermonkey so the calculator can use it later.
-- If you come back within 10 minutes, it reuses the last sync instead of fetching again.
+> Synced 11:20 AM · Goodreads 412 books, 380 matched · Kindle 597 books
 
-Do this again whenever you've bought new books. UK, Canada and Australia Kindle sites work too.
-
-### 2. Open the calculator
-
-Click **Open calculator** in that box, click the **Shelf of Shame** button that now sits in the bottom-right corner of every Goodreads page, or go straight to:
-
-**https://www.goodreads.com/kindle-calculator**
-
-That address is normally a Goodreads "page not found" page. The script replaces it with the calculator.
-
-### 3. It syncs automatically
-
-As soon as the calculator opens, it:
-
-1. **Finds your Goodreads account** from the site header (you need to be signed in).
-2. **Reads three shelves**: to-read, currently-reading and read. The status line under the title shows progress, for example *Reading your Goodreads "read" shelf…*
-3. **Loads the Kindle list** saved in step 1.
-4. **Matches the two** (see the next section) and updates the numbers, charts and Shelf of Shame.
-5. **Saves everything** in Tampermonkey's storage for next time.
-
-When it's finished the status line reads something like:
-
-> Synced 11:20 AM · Goodreads 412 books, 380 matched · Kindle 597 books (from 9/30/2026)
-
-Press **Sync now** at any time to pull the latest shelves again.
+The script works in the background using your existing Goodreads and Amazon sign-ins, so you need to be **signed in to goodreads.com and read.amazon.com** in the same browser. It only reads; it never changes anything in either account. The first time, Tampermonkey may ask you to allow the script to connect to goodreads.com and amazon.com. Choose **Always allow**.
 
 ### Day to day
 
-1. After you buy Kindle books, visit **read.amazon.com/kindle-library** once so the new ones are picked up.
-2. Open **goodreads.com/kindle-calculator** or click the **Shelf of Shame** button on any Goodreads page. It syncs your shelves automatically.
+Open **bookshelf.kirbee213.tv**. That's it. Mark books as read on Goodreads the way you normally would, and buy Kindle books as usual; the page picks up both.
 
-That's it. Mark books as read on Goodreads the way you normally would, and the calculator follows along.
+### Extras the script adds
+
+- A **Shelf of Shame** button in the bottom-right corner of every Goodreads page links to the calculator.
+- Visiting **read.amazon.com/kindle-library** refreshes the Kindle list right away (a small box in the corner counts the books). You don't need to do this, but it's there. UK, Canada and Australia Kindle sites work too.
+- The older address **goodreads.com/kindle-calculator** still works, but keeps a separate copy of your library. Use bookshelf.kirbee213.tv.
 
 ### What you end up with
 
@@ -130,9 +109,9 @@ That's it. Mark books as read on Goodreads the way you normally would, and the c
 
 ---
 
-## Alternative: the website (file import)
+## Without the script: file import
 
-Use this version on a phone, or if you don't want to install Tampermonkey. A regular website isn't allowed to read your Amazon or Goodreads account, so here you bring your books in as files.
+Use this on a phone, or if you don't want to install Tampermonkey. Without the script, a website isn't allowed to read your Amazon or Goodreads account, so you bring your books in as files.
 
 Open **https://bookshelf.kirbee213.tv**. You'll see an example library of public-domain classics first. It disappears as soon as you import your own books or click **Start empty**.
 
@@ -230,23 +209,23 @@ Your library lives in the browser you used. Clearing browser data, switching bro
 1. Click **Back up**. A file like `kindle-library-2026-09-30.json` downloads.
 2. On the other computer or browser, open the calculator, click **Import**, choose **Any CSV / backup** and drop in the file.
 
-The automatic-sync version and the website store data separately. A backup from one imports into the other.
+The goodreads.com/kindle-calculator page stores its data separately from bookshelf.kirbee213.tv. A backup from one imports into the other.
 
 ---
 
 ## Troubleshooting
 
-**Nothing happens on Goodreads or Amazon after installing the script.**
-Turn on **Allow User Scripts** (or Developer mode) for Tampermonkey in Chrome/Edge, then reload the page. Check that the Tampermonkey icon shows the script as enabled.
+**The site doesn't show Sync now after installing the script.**
+Turn on **Allow User Scripts** (or Developer mode) for Tampermonkey in Chrome/Edge, then reload the page. Check that the Tampermonkey icon shows the script as enabled on bookshelf.kirbee213.tv. Make sure the script is version 1.2 or newer.
 
-**"Sign in to Goodreads first, then press Sync now."**
-Sign in to goodreads.com, open any Goodreads page once, then go back to the calculator and press **Sync now**.
+**"Goodreads failed: sign in at goodreads.com first."**
+Sign in to goodreads.com in the same browser, open any Goodreads page once, then come back and press **Sync now**.
+
+**"Kindle failed: sign in at read.amazon.com first."**
+Sign in at read.amazon.com in the same browser, then press **Sync now**. If Tampermonkey asked about connecting to amazon.com and you blocked it, allow it in the Tampermonkey dashboard under the script's **Settings → XHR Security**.
 
 **"Goodreads failed: …" in the status line.**
-Goodreads may be slow or may have changed its pages. Press **Sync now** again. If it keeps failing, use the Goodreads CSV export in **Import file** instead.
-
-**"Couldn't read your Kindle library (HTTP 401/403)."**
-Your Amazon sign-in has expired. Sign in at read.amazon.com and reload the Kindle library page.
+Goodreads may be slow or may have changed its pages. Press **Sync now** again. If it keeps failing, use the Goodreads CSV export in **Import library** instead.
 
 **Every book shows as Unread.**
 That's expected from the Kindle list on its own. Amazon doesn't share reading progress there. Sync Goodreads or mark books by hand.
@@ -268,7 +247,7 @@ Click **Start empty** or import something. The example books are never saved.
 - Kindle reading progress isn't available from Amazon's library list.
 - Page counts and prices are estimates unless Goodreads, an Amazon orders file, or you provide them.
 - Book covers aren't shown.
-- The Tampermonkey version works in desktop browsers only.
+- The sync script works in desktop browsers only. On phones, use file import.
 
 ---
 
@@ -278,6 +257,6 @@ Click **Start empty** or import something. The example books are never saved.
 | --- | --- |
 | `index.html` | The website version, served at bookshelf.kirbee213.tv |
 | `BookshelfCalc/index.html` | The same page, for use at a `/BookshelfCalc` path |
-| `kindle-library-calculator.user.js` | The Tampermonkey version with Goodreads and Kindle sync |
+| `kindle-library-calculator.user.js` | The Tampermonkey sync script |
 | `CNAME` | Tells GitHub Pages to use bookshelf.kirbee213.tv |
 | `README.md` | This file |

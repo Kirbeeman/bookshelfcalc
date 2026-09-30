@@ -1,10 +1,12 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.1
+// @version      1.2
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
+// @match        https://bookshelf.kirbee213.tv/*
+// @match        https://kirbeeman.github.io/bookshelfcalc/*
 // @match        https://www.goodreads.com/*
 // @match        https://read.amazon.com/kindle-library*
 // @match        https://read.amazon.co.uk/kindle-library*
@@ -13,14 +15,138 @@
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_addStyle
+// @grant        GM_xmlhttpRequest
+// @connect      goodreads.com
+// @connect      amazon.com
+// @connect      amazon.co.uk
+// @connect      amazon.ca
+// @connect      amazon.com.au
 // @run-at       document-end
 // ==/UserScript==
 
 (function () {
 'use strict';
-const CALC_URL = 'https://www.goodreads.com/kindle-calculator';
-const onKindle = /^read\.amazon\./.test(location.hostname);
-const onCalc = location.hostname === 'www.goodreads.com' && location.pathname.replace(/\/$/, '') === '/kindle-calculator';
+const SITE_URL = 'https://bookshelf.kirbee213.tv/';
+const host = location.hostname;
+const onKindle = /^read\.amazon\./.test(host);
+const onGoodreads = host === 'www.goodreads.com';
+const onCalc = onGoodreads && location.pathname.replace(/\/$/, '') === '/kindle-calculator';
+const onSite = host === 'bookshelf.kirbee213.tv' || (host === 'kirbeeman.github.io' && location.pathname.startsWith('/bookshelfcalc'));
+
+// ---------- core: fetch Goodreads shelves and the Kindle library from any page ----------
+function gmGet(url) {
+  return new Promise((resolve, reject) => GM_xmlhttpRequest({
+    method: 'GET', url, timeout: 30000,
+    onload: r => resolve({status: r.status, text: r.responseText, finalUrl: r.finalUrl || url}),
+    onerror: () => reject(new Error('network error')),
+    ontimeout: () => reject(new Error('timed out')),
+  }));
+}
+const tag = (el, name) => (el.getElementsByTagName(name)[0]?.textContent || '').trim();
+
+async function goodreadsUserId() {
+  const saved = GM_getValue('grUser', '');
+  if (saved) return saved;
+  const r = await gmGet('https://www.goodreads.com/review/list');
+  const m = r.finalUrl.match(/\/review\/list\/(\d+)/) || r.text.match(/\/review\/list\/(\d+)/);
+  if (!m) throw new Error('sign in at goodreads.com first');
+  GM_setValue('grUser', m[1]);
+  return m[1];
+}
+async function shelfRss(id, shelf) {
+  const out = [], seen = new Set();
+  for (let page = 1; page <= 80; page++) {
+    const r = await gmGet(`https://www.goodreads.com/review/list_rss/${id}?shelf=${encodeURIComponent(shelf)}&page=${page}`);
+    if (r.status !== 200) throw new Error('rss ' + r.status);
+    const x = new DOMParser().parseFromString(r.text, 'text/xml');
+    if (x.querySelector('parsererror') || !x.querySelector('channel')) throw new Error('rss unavailable');
+    let fresh = 0;
+    for (const it of x.getElementsByTagName('item')) {
+      const bid = tag(it, 'book_id') || tag(it, 'guid');
+      if (seen.has(bid)) continue; seen.add(bid); fresh++;
+      out.push({title: tag(it, 'title'), author: tag(it, 'author_name'), isbn: tag(it, 'isbn'), pages: tag(it, 'num_pages'),
+        rating: tag(it, 'user_rating'), dateAdded: tag(it, 'user_date_added'), readAt: tag(it, 'user_read_at')});
+    }
+    if (!fresh) break;
+  }
+  return out;
+}
+async function shelfHtml(id, shelf) {
+  const out = [], seen = new Set();
+  for (let page = 1; page <= 80; page++) {
+    const r = await gmGet(`https://www.goodreads.com/review/list/${id}?shelf=${encodeURIComponent(shelf)}&per_page=100&page=${page}&view=table`);
+    if (r.status !== 200) throw new Error(`Goodreads returned ${r.status} for your ${shelf} shelf`);
+    const doc = new DOMParser().parseFromString(r.text, 'text/html');
+    let fresh = 0;
+    for (const row of doc.querySelectorAll('tr.review, tr.bookalike')) {
+      const a = row.querySelector('td.field.title a'); if (!a) continue;
+      const key = a.getAttribute('href'); if (seen.has(key)) continue; seen.add(key); fresh++;
+      const val = c => (row.querySelector(`td.field.${c} .value`)?.textContent || '').replace(/\s+/g, ' ').trim();
+      out.push({title: (a.getAttribute('title') || a.textContent).trim(), author: row.querySelector('td.field.author a')?.textContent || '',
+        isbn: val('isbn'), pages: val('num_pages'), rating: String(row.querySelectorAll('td.field.rating .staticStar.p10').length),
+        dateAdded: val('date_added'), readAt: val('date_read')});
+    }
+    if (!fresh) break;
+  }
+  return out;
+}
+async function fetchGoodreads(progress) {
+  const id = await goodreadsUserId();
+  const shelves = {'to-read': 'unread', 'currently-reading': 'reading', 'read': 'finished'};
+  const all = []; let html = false;
+  for (const [shelf, status] of Object.entries(shelves)) {
+    progress(`Reading your Goodreads "${shelf}" shelf…`);
+    let books;
+    if (!html) { try { books = await shelfRss(id, shelf); } catch { html = true; } }
+    if (html) books = await shelfHtml(id, shelf);
+    books.forEach(b => all.push({...b, status}));
+  }
+  return all;
+}
+async function fetchKindle(progress) {
+  const kHost = GM_getValue('kindleHost', 'read.amazon.com');
+  const items = []; let token = '';
+  for (let page = 0; page < 400; page++) {
+    const r = await gmGet(`https://${kHost}/kindle-library/search?query=&libraryType=BOOKS&sortType=recency&querySize=50` + (token ? '&paginationToken=' + encodeURIComponent(token) : ''));
+    let j; try { j = JSON.parse(r.text); } catch { throw new Error(`sign in at ${kHost} first`); }
+    if (r.status !== 200 || !j.itemsList) throw new Error(`sign in at ${kHost} first`);
+    for (const b of j.itemsList) items.push({asin: b.asin, title: b.title, authors: b.authors, percentageRead: b.percentageRead, originType: b.originType, resourceType: b.resourceType});
+    progress(`Reading your Kindle library… ${items.length} books`);
+    if (!j.paginationToken) break;
+    token = j.paginationToken;
+  }
+  return items;
+}
+const KLC_CORE = {
+  // force = the Sync now button: always refresh the Kindle list. Otherwise reuse it for 6 hours.
+  async sync(force, progress = () => {}) {
+    const out = {goodreads: [], grErr: '', kindle: null, kErr: ''};
+    try { out.goodreads = await fetchGoodreads(progress); } catch (e) { out.grErr = e.message || String(e); }
+    let k = null; try { k = JSON.parse(GM_getValue('kindle', 'null')); } catch {}
+    if (force || !k || Date.now() - k.time > 6 * 3600e3) {
+      try { progress('Reading your Kindle library…'); k = {time: Date.now(), items: await fetchKindle(progress)}; GM_setValue('kindle', JSON.stringify(k)); }
+      catch (e) { out.kErr = e.message || String(e); }
+    }
+    out.kindle = k;
+    return out;
+  },
+};
+
+// ---------- 1. On the website: answer the page's sync requests ----------
+if (onSite) {
+  const post = m => window.postMessage(Object.assign({klc: 1}, m), location.origin);
+  window.addEventListener('message', async e => {
+    const d = e.data;
+    if (!d || d.klc !== 1 || (e.origin && e.origin !== location.origin)) return;
+    if (d.type === 'hello') post({type: 'ready'});
+    else if (d.type === 'sync') {
+      const data = await KLC_CORE.sync(!!d.force, msg => post({type: 'progress', msg}));
+      post({type: 'result', data: JSON.stringify(data)});
+    }
+  });
+  post({type: 'ready'});
+  return;
+}
 
 function badge(html) {
   GM_addStyle(`#klc-badge{position:fixed;right:16px;bottom:16px;z-index:2147483647;background:#1b1e20;color:#f2f2ee;font:600 13px/1.4 system-ui,sans-serif;padding:10px 14px;border-radius:8px;box-shadow:0 4px 18px rgba(0,0,0,.25);max-width:320px}#klc-badge a{color:#9fb0ff;text-decoration:underline}#klc-badge button{all:unset;cursor:pointer;margin-left:10px;opacity:.6}`);
@@ -30,25 +156,15 @@ function badge(html) {
   el.querySelector('button').onclick = () => el.remove();
 }
 
-// ---- 1. On the Kindle library page: quietly read the library list and cache it for the calculator ----
+// ---------- 2. On the Kindle library page: refresh the cached Kindle list (optional; the website fetches it too) ----------
 if (onKindle) {
+  GM_setValue('kindleHost', host);
   (async () => {
-    const last = JSON.parse(GM_getValue('kindle', 'null') || 'null');
-    if (last && Date.now() - last.time < 10 * 60 * 1000) { badge(`Kindle library synced (${last.items.length} books). <a href="${CALC_URL}">Open calculator</a>`); return; }
     badge('Syncing your Kindle library…');
-    const items = []; let token = '';
     try {
-      for (let page = 0; page < 400; page++) {
-        const r = await fetch('/kindle-library/search?query=&libraryType=BOOKS&sortType=recency&querySize=50' + (token ? '&paginationToken=' + encodeURIComponent(token) : ''), {credentials:'include'});
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        const j = await r.json();
-        for (const b of j.itemsList || []) items.push({asin:b.asin, title:b.title, authors:b.authors, percentageRead:b.percentageRead, originType:b.originType, resourceType:b.resourceType});
-        badge(`Syncing your Kindle library… ${items.length} books`);
-        if (!j.paginationToken) break;
-        token = j.paginationToken;
-      }
+      const items = await fetchKindle(msg => badge(msg));
       GM_setValue('kindle', JSON.stringify({time: Date.now(), items}));
-      badge(`Kindle library synced: ${items.length} books. <a href="${CALC_URL}">Open calculator</a>`);
+      badge(`Kindle library synced: ${items.length} books. <a href="${SITE_URL}">Open calculator</a>`);
     } catch (e) {
       badge(`Couldn't read your Kindle library (${e.message}). Reload the page to try again.`);
     }
@@ -56,20 +172,20 @@ if (onKindle) {
   return;
 }
 
-// Remember the signed-in Goodreads user id (read from the site header) for the calculator
+// Remember the signed-in Goodreads user id (read from the site header)
 const me = document.querySelector('header a[href*="/user/show/"], nav a[href*="/user/show/"], a[href*="/user/show/"]');
 const meId = me && (me.getAttribute('href').match(/\/user\/show\/(\d+)/) || [])[1];
 if (meId) GM_setValue('grUser', meId);
 
-// ---- 2. Anywhere else on Goodreads: a small link to the calculator ----
+// ---------- 3. Anywhere else on Goodreads: a small link to the calculator ----------
 if (!onCalc) {
   GM_addStyle(`#klc-open{position:fixed;right:16px;bottom:16px;z-index:2147483647;background:#1b1e20;color:#f2f2ee!important;font:600 13px/1 system-ui,sans-serif;padding:10px 14px;border-radius:8px;text-decoration:none!important;box-shadow:0 4px 18px rgba(0,0,0,.25)}#klc-open:hover{background:#27408b}`);
-  const a = document.createElement('a'); a.id = 'klc-open'; a.href = CALC_URL; a.textContent = "Shelf of Shame";
+  const a = document.createElement('a'); a.id = 'klc-open'; a.href = SITE_URL; a.textContent = 'Shelf of Shame';
   document.body.appendChild(a);
   return;
 }
 
-// ---- 3. goodreads.com/kindle-calculator: replace Goodreads' "not found" page with the calculator ----
+// ---------- 4. goodreads.com/kindle-calculator: the calculator drawn inside Goodreads (kept for older links) ----------
 document.title = 'Kindle Library Calculator';
 document.querySelectorAll('link[rel="stylesheet"], style').forEach(n => n.remove());
 const font = document.createElement('link'); font.rel = 'stylesheet';
@@ -82,10 +198,10 @@ document.body.innerHTML = `<div class="wrap">
     <div class="brand">
       <h1>Kindle Library Calculator</h1>
       <div class="store demo" id="store"><i></i><span>Example library</span></div>
-      <div class="store" id="sync"><span>Not synced yet</span></div>
+      <div class="store" id="sync" hidden><span>Not synced yet</span></div>
     </div>
     <div class="actions">
-      <button class="btn primary" id="btnSync">Sync now</button>
+      <button class="btn primary" id="btnSync" hidden>Sync now</button>
       <button class="btn" id="btnImport">Import file</button>
       <button class="btn" id="btnAdd">Add book</button>
       <button class="btn" id="btnSettings">Settings</button>
@@ -94,8 +210,8 @@ document.body.innerHTML = `<div class="wrap">
   </header>
 
   <div class="banner" id="demoBanner">
-    <p><strong>This is an example library</strong> of public-domain classics so you can see how it works. Syncing your Goodreads shelves replaces it. Visit read.amazon.com/kindle-library once so your Kindle books get picked up too.</p>
-    <div class="row"><button class="btn primary" id="bannerImport">Sync now</button><button class="btn" id="bannerEmpty">Start empty</button></div>
+    <p><strong>This is an example library</strong> of public-domain classics so you can see how it works. Your first sync replaces it with your Kindle library and Goodreads shelves.</p>
+    <div class="row"><button class="btn primary" id="bannerImport">Import my Kindle books</button><button class="btn" id="bannerEmpty">Start empty</button></div>
   </div>
 
   <section class="tiles" aria-label="Library summary">
@@ -517,7 +633,7 @@ async function persist() {
 }
 // Save immediately if the page is closed or hidden before the short save delay runs
 const flushSave = () => { if (saveTimer) { clearTimeout(saveTimer); persist(); } };
-addEventListener('pagehide', flushSave);
+window.addEventListener('pagehide', flushSave);
 document.addEventListener('visibilitychange', () => { if (document.hidden) flushSave(); });
 function setStore(state, msg) {
   const el = $('#store'), sp = el.querySelector('span');
@@ -821,8 +937,8 @@ $('#impTabs').addEventListener('click', e => {
   document.querySelectorAll('[data-p]').forEach(p => p.hidden = p.dataset.p !== t.dataset.t);
 });
 const openImport = () => { $('#impResult').textContent = ''; $('#impResult').className = 'result'; $('#replace').checked = false; $('#dlgImport').showModal(); };
-$('#btnImport').onclick = openImport; $('#bannerImport').onclick = () => syncAll();
-$('#btnSync').onclick = () => syncAll();
+$('#btnImport').onclick = openImport; $('#bannerImport').onclick = () => syncOn ? runSync(true) : openImport();
+$('#btnSync').onclick = () => runSync(true);
 $('#bannerEmpty').onclick = () => { leaveDemo(true); renderAll(); scheduleSave(); };
 
 const drop = $('#drop');
@@ -1006,106 +1122,73 @@ $('#doImport').onclick = () => {
   } catch (e) { res.className = 'result err'; res.textContent = e.message || String(e); }
 };
 
-// ---------- live sync: Goodreads shelves + Kindle library cached by the read.amazon.com half ----------
-const GR_SHELVES = {'to-read':'unread', 'currently-reading':'reading', 'read':'finished'};
-let syncing = false;
-function setSync(msg, kind) { const el = $('#sync'); el.className = 'store ' + (kind || ''); el.querySelector('span').textContent = msg; }
+// ---------- live sync ----------
+// A sync source is either the Tampermonkey script itself (KLC_CORE, when this page is drawn by the script on goodreads.com)
+// or the script's bridge on the website (it answers window messages). Without either, the page works from file imports only.
+let storeReady = Promise.resolve(), syncing = false, syncOn = false, bridgeWaiters = null;
+const hasCore = typeof KLC_CORE !== 'undefined';
+const postBridge = m => window.postMessage(Object.assign({klc: 1}, m), location.origin === 'null' ? '*' : location.origin);
+function setSync(msg, kind) { const el = $('#sync'); el.hidden = false; el.className = 'store ' + (kind || ''); el.querySelector('span').textContent = msg; }
 
-async function grUserId() {
-  const link = document.querySelector('a[href*="/user/show/"]');
-  const fromLink = link && (link.getAttribute('href').match(/\/user\/show\/(\d+)/) || [])[1];
-  if (fromLink) { GM_setValue('grUser', fromLink); return fromLink; }
-  const saved = GM_getValue('grUser', '');
-  if (saved) return saved;
-  const r = await fetch('/review/list', {credentials:'include'});
-  const m = r.url.match(/\/review\/list\/(\d+)/);
-  if (!m) throw new Error('Sign in to Goodreads first, then press Sync now.');
-  GM_setValue('grUser', m[1]);
-  return m[1];
+function enableSync() {
+  if (syncOn) return;
+  syncOn = true;
+  $('#btnSync').hidden = false;
+  $('#btnImport').classList.remove('primary');
+  $('#bannerImport').textContent = 'Sync now';
+  const p = $('#demoBanner p'); if (p) p.innerHTML = '<strong>This is an example library.</strong> Your first sync replaces it with your Kindle library and Goodreads shelves.';
+  setSync('Connected to the sync script');
+  runSync(false);
 }
-const tag = (el, name) => (el.getElementsByTagName(name)[0]?.textContent || '').trim();
+window.addEventListener('message', e => {
+  const d = e.data;
+  if (!d || d.klc !== 1 || (e.origin && e.origin !== location.origin && location.origin !== 'null')) return;
+  if (d.type === 'ready') enableSync();
+  else if (d.type === 'progress') setSync(d.msg);
+  else if (d.type === 'result' && bridgeWaiters) { const w = bridgeWaiters; bridgeWaiters = null; try { w.resolve(JSON.parse(d.data)); } catch (err) { w.reject(err); } }
+});
+function startSync() {
+  if (hasCore) enableSync();
+  else postBridge({type: 'hello'});
+}
+function bridgeSync(force) {
+  return new Promise((resolve, reject) => {
+    bridgeWaiters = {resolve, reject};
+    postBridge({type: 'sync', force});
+    setTimeout(() => { if (bridgeWaiters) { bridgeWaiters = null; reject(new Error('The sync script did not answer. Reload the page.')); } }, 180000);
+  });
+}
+
 const grDate = s => { const d = s ? new Date(s) : null; return d && !isNaN(d) ? d.toISOString().slice(0,10) : ''; };
-
-async function fetchShelfRss(id, shelf) {
-  const out = [], seen = new Set();
-  for (let page = 1; page <= 80; page++) {
-    const r = await fetch(`/review/list_rss/${id}?shelf=${encodeURIComponent(shelf)}&page=${page}`, {credentials:'include'});
-    if (!r.ok) throw new Error('rss ' + r.status);
-    const x = new DOMParser().parseFromString(await r.text(), 'text/xml');
-    if (x.querySelector('parsererror') || !x.querySelector('channel')) throw new Error('rss unavailable');
-    const items = [...x.getElementsByTagName('item')];
-    let fresh = 0;
-    for (const it of items) {
-      const bid = tag(it, 'book_id') || tag(it, 'guid');
-      if (seen.has(bid)) continue; seen.add(bid); fresh++;
-      out.push({
-        grId: bid, title: tag(it, 'title'), author: cleanAuthor(tag(it, 'author_name')),
-        isbn: tag(it, 'isbn'), pages: toNum(tag(it, 'num_pages')) || null,
-        rating: Math.round(toNum(tag(it, 'user_rating')) || 0),
-        date: grDate(tag(it, 'user_date_added')), readAt: grDate(tag(it, 'user_read_at')),
-      });
-    }
-    if (!fresh) break;
-  }
-  return out;
-}
-async function fetchShelfHtml(id, shelf) {
-  const out = [], seen = new Set();
-  for (let page = 1; page <= 80; page++) {
-    const r = await fetch(`/review/list/${id}?shelf=${encodeURIComponent(shelf)}&per_page=100&page=${page}&view=table`, {credentials:'include'});
-    if (!r.ok) throw new Error('Goodreads returned ' + r.status + ' for your ' + shelf + ' shelf.');
-    const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
-    const rows = [...doc.querySelectorAll('tr.review, tr.bookalike')];
-    let fresh = 0;
-    for (const row of rows) {
-      const a = row.querySelector('td.field.title a');
-      if (!a) continue;
-      const key = a.getAttribute('href');
-      if (seen.has(key)) continue; seen.add(key); fresh++;
-      const val = c => (row.querySelector(`td.field.${c} .value`)?.textContent || '').replace(/\s+/g, ' ').trim();
-      out.push({
-        grId: key, title: (a.getAttribute('title') || a.textContent).trim(),
-        author: cleanAuthor(row.querySelector('td.field.author a')?.textContent || ''),
-        isbn: val('isbn'), pages: toNum(val('num_pages')) || null,
-        rating: row.querySelectorAll('td.field.rating .staticStar.p10').length,
-        date: grDate(val('date_added')), readAt: grDate(val('date_read')),
-      });
-    }
-    if (!fresh) break;
-  }
-  return out;
-}
-async function fetchGoodreads() {
-  const id = await grUserId();
-  const all = [];
-  let useHtml = false;
-  for (const [shelf, status] of Object.entries(GR_SHELVES)) {
-    setSync(`Reading your Goodreads "${shelf}" shelf…`);
-    let books;
-    if (!useHtml) { try { books = await fetchShelfRss(id, shelf); } catch { useHtml = true; } }
-    if (useHtml) books = await fetchShelfHtml(id, shelf);
-    books.forEach(b => all.push({...b, status, progress: status === 'finished' ? 100 : status === 'unread' ? 0 : null, source: null}));
-  }
-  return all;
+function normGoodreads(list) {
+  return (list || []).map(b => ({
+    title: String(b.title || '').trim(), author: cleanAuthor(b.author), isbn: b.isbn || '',
+    pages: toNum(b.pages) || null, rating: Math.round(Math.min(5, toNum(b.rating) || 0)),
+    date: grDate(b.dateAdded), status: b.status,
+    progress: b.status === 'finished' ? 100 : b.status === 'unread' ? 0 : null, source: null,
+  })).filter(b => b.title);
 }
 
-async function syncAll() {
-  if (syncing) return; syncing = true;
-  $('#btnSync').disabled = true;
+async function runSync(force) {
+  if (syncing || !syncOn) return;
+  syncing = true; $('#btnSync').disabled = true;
   try {
-    let gr = [], grErr = '';
-    try { gr = await fetchGoodreads(); } catch (e) { grErr = e.message || String(e); }
-    let kindle = null; try { kindle = JSON.parse(GM_getValue('kindle', 'null')); } catch {}
-    const kItems = kindle?.items || [];
-    if (!gr.length && !kItems.length) { setSync(grErr || 'Nothing to sync yet. Add books on Goodreads or visit your Kindle library.', 'local'); return; }
+    await storeReady;
+    setSync('Syncing…');
+    const data = hasCore ? await KLC_CORE.sync(force, msg => setSync(msg)) : await bridgeSync(force);
+    const gr = normGoodreads(data.goodreads);
+    const kItems = data.kindle?.items || [];
+    if (!gr.length && !kItems.length) { setSync([data.grErr, data.kErr].filter(Boolean).join(' · ') || 'Nothing to sync yet.', 'local'); return; }
     leaveDemo(true);
     if (kItems.length) merge(fromKindle(kItems), false, 'kindle');
-    const addGr = !kItems.length || S.settings.grAll;
-    const res = merge(gr, false, 'goodreads', addGr);
+    const res = merge(gr, false, 'goodreads', !kItems.length || S.settings.grAll);
     renderAll(); scheduleSave();
     const when = new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
-    const kTxt = kItems.length ? `Kindle ${kItems.length} books (from ${new Date(kindle.time).toLocaleDateString()})` : 'Kindle not synced yet: visit read.amazon.com/kindle-library';
-    setSync(grErr ? `Goodreads failed: ${grErr} · ${kTxt}` : `Synced ${when} · Goodreads ${gr.length} books, ${res.updated} matched · ${kTxt}`, grErr ? 'local' : 'db');
+    const grTxt = data.grErr ? `Goodreads failed: ${data.grErr}` : `Goodreads ${gr.length} books, ${res.updated} matched`;
+    const kTxt = data.kErr && !kItems.length ? `Kindle failed: ${data.kErr}` : kItems.length ? `Kindle ${kItems.length} books` + (data.kErr ? ' (older copy: ' + data.kErr + ')' : '') : 'Kindle not synced';
+    setSync(`Synced ${when} · ${grTxt} · ${kTxt}`, data.grErr || data.kErr ? 'local' : 'db');
+  } catch (e) {
+    setSync(e.message || String(e), 'local');
   } finally { syncing = false; $('#btnSync').disabled = false; }
 }
 
@@ -1125,6 +1208,7 @@ let tt;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), 2600); }
 
 renderAll();
-initStore().then(() => syncAll());
+storeReady = initStore();
+startSync();
 
 })();

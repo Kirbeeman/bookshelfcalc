@@ -185,8 +185,10 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.78rem;re
     <div class="brand">
       <h1>Kindle Library Calculator</h1>
       <div class="store demo" id="store"><i></i><span>Example library</span></div>
+      <div class="store" id="sync" hidden><span>Not synced yet</span></div>
     </div>
     <div class="actions">
+      <button class="btn primary" id="btnSync" hidden>Sync now</button>
       <button class="btn primary" id="btnImport">Import library</button>
       <button class="btn" id="btnAdd">Add book</button>
       <button class="btn" id="btnSettings">Settings</button>
@@ -447,7 +449,7 @@ async function persist() {
 }
 // Save immediately if the page is closed or hidden before the short save delay runs
 const flushSave = () => { if (saveTimer) { clearTimeout(saveTimer); persist(); } };
-addEventListener('pagehide', flushSave);
+window.addEventListener('pagehide', flushSave);
 document.addEventListener('visibilitychange', () => { if (document.hidden) flushSave(); });
 function setStore(state, msg) {
   const el = $('#store'), sp = el.querySelector('span');
@@ -751,7 +753,8 @@ $('#impTabs').addEventListener('click', e => {
   document.querySelectorAll('[data-p]').forEach(p => p.hidden = p.dataset.p !== t.dataset.t);
 });
 const openImport = () => { $('#impResult').textContent = ''; $('#impResult').className = 'result'; $('#replace').checked = false; $('#dlgImport').showModal(); };
-$('#btnImport').onclick = openImport; $('#bannerImport').onclick = openImport;
+$('#btnImport').onclick = openImport; $('#bannerImport').onclick = () => syncOn ? runSync(true) : openImport();
+$('#btnSync').onclick = () => runSync(true);
 $('#bannerEmpty').onclick = () => { leaveDemo(true); renderAll(); scheduleSave(); };
 
 const drop = $('#drop');
@@ -935,6 +938,76 @@ $('#doImport').onclick = () => {
   } catch (e) { res.className = 'result err'; res.textContent = e.message || String(e); }
 };
 
+// ---------- live sync ----------
+// A sync source is either the Tampermonkey script itself (KLC_CORE, when this page is drawn by the script on goodreads.com)
+// or the script's bridge on the website (it answers window messages). Without either, the page works from file imports only.
+let storeReady = Promise.resolve(), syncing = false, syncOn = false, bridgeWaiters = null;
+const hasCore = typeof KLC_CORE !== 'undefined';
+const postBridge = m => window.postMessage(Object.assign({klc: 1}, m), location.origin === 'null' ? '*' : location.origin);
+function setSync(msg, kind) { const el = $('#sync'); el.hidden = false; el.className = 'store ' + (kind || ''); el.querySelector('span').textContent = msg; }
+
+function enableSync() {
+  if (syncOn) return;
+  syncOn = true;
+  $('#btnSync').hidden = false;
+  $('#btnImport').classList.remove('primary');
+  $('#bannerImport').textContent = 'Sync now';
+  const p = $('#demoBanner p'); if (p) p.innerHTML = '<strong>This is an example library.</strong> Your first sync replaces it with your Kindle library and Goodreads shelves.';
+  setSync('Connected to the sync script');
+  runSync(false);
+}
+window.addEventListener('message', e => {
+  const d = e.data;
+  if (!d || d.klc !== 1 || (e.origin && e.origin !== location.origin && location.origin !== 'null')) return;
+  if (d.type === 'ready') enableSync();
+  else if (d.type === 'progress') setSync(d.msg);
+  else if (d.type === 'result' && bridgeWaiters) { const w = bridgeWaiters; bridgeWaiters = null; try { w.resolve(JSON.parse(d.data)); } catch (err) { w.reject(err); } }
+});
+function startSync() {
+  if (hasCore) enableSync();
+  else postBridge({type: 'hello'});
+}
+function bridgeSync(force) {
+  return new Promise((resolve, reject) => {
+    bridgeWaiters = {resolve, reject};
+    postBridge({type: 'sync', force});
+    setTimeout(() => { if (bridgeWaiters) { bridgeWaiters = null; reject(new Error('The sync script did not answer. Reload the page.')); } }, 180000);
+  });
+}
+
+const grDate = s => { const d = s ? new Date(s) : null; return d && !isNaN(d) ? d.toISOString().slice(0,10) : ''; };
+function normGoodreads(list) {
+  return (list || []).map(b => ({
+    title: String(b.title || '').trim(), author: cleanAuthor(b.author), isbn: b.isbn || '',
+    pages: toNum(b.pages) || null, rating: Math.round(Math.min(5, toNum(b.rating) || 0)),
+    date: grDate(b.dateAdded), status: b.status,
+    progress: b.status === 'finished' ? 100 : b.status === 'unread' ? 0 : null, source: null,
+  })).filter(b => b.title);
+}
+
+async function runSync(force) {
+  if (syncing || !syncOn) return;
+  syncing = true; $('#btnSync').disabled = true;
+  try {
+    await storeReady;
+    setSync('Syncing…');
+    const data = hasCore ? await KLC_CORE.sync(force, msg => setSync(msg)) : await bridgeSync(force);
+    const gr = normGoodreads(data.goodreads);
+    const kItems = data.kindle?.items || [];
+    if (!gr.length && !kItems.length) { setSync([data.grErr, data.kErr].filter(Boolean).join(' · ') || 'Nothing to sync yet.', 'local'); return; }
+    leaveDemo(true);
+    if (kItems.length) merge(fromKindle(kItems), false, 'kindle');
+    const res = merge(gr, false, 'goodreads', !kItems.length || S.settings.grAll);
+    renderAll(); scheduleSave();
+    const when = new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+    const grTxt = data.grErr ? `Goodreads failed: ${data.grErr}` : `Goodreads ${gr.length} books, ${res.updated} matched`;
+    const kTxt = data.kErr && !kItems.length ? `Kindle failed: ${data.kErr}` : kItems.length ? `Kindle ${kItems.length} books` + (data.kErr ? ' (older copy: ' + data.kErr + ')' : '') : 'Kindle not synced';
+    setSync(`Synced ${when} · ${grTxt} · ${kTxt}`, data.grErr || data.kErr ? 'local' : 'db');
+  } catch (e) {
+    setSync(e.message || String(e), 'local');
+  } finally { syncing = false; $('#btnSync').disabled = false; }
+}
+
 // ---------- export ----------
 $('#btnExport').onclick = async () => {
   const data = JSON.stringify({app:'kindle-library-calculator', exported:new Date().toISOString(), settings:S.settings, books:S.books}, null, 1);
@@ -951,7 +1024,8 @@ let tt;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), 2600); }
 
 renderAll();
-initStore();
+storeReady = initStore();
+startSync();
 })();
 </script>
 
