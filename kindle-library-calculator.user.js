@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.27
+// @version      1.28
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -1030,7 +1030,7 @@ function renderStats() {
     const pg = by[k].reduce((a,b) => a + pagesOf(b), 0);
     return `<div><span><span class="legend"><span><i style="background:${STATUS_COLOR[k]}"></i>${STATUS[k]}</span></span></span><span class="num">${fmtInt(by[k].length)} ${by[k].length === 1 ? 'book' : 'books'} <span class="muted">· ${fmtInt(pg)} pages</span></span></div>`;
   }).join('') + `<div style="border-top:1px solid var(--rule);padding-top:6px"><span>Spent (known prices)</span><span class="num">${mask(bs.reduce((a,b) => a + (+b.price || 0), 0))}</span></div>` +
-    `<div><span title="Shared with you, free, Kindle Unlimited, Prime Reading, borrowed and samples">Not bought by you</span><span class="num">${fmtInt(S.books.filter(b => b.source !== 'purchase').length)} books</span></div>` +
+    `<div><span title="Free, Kindle Unlimited and Prime Reading books, plus books shared with you, borrowed and samples">Free, KU and Prime</span><span class="num">${fmtInt(S.books.filter(b => b.source !== 'purchase').length)} books</span></div>` +
     `<div><span>Average rating</span><span class="num">${(() => { const r = bs.filter(b => b.rating > 0); return r.length ? (r.reduce((a,b) => a + b.rating, 0) / r.length).toFixed(1) + ' ★' : '—'; })()}</span></div>`;
 
   // years
@@ -1660,7 +1660,7 @@ async function lookupBookInfo() {
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '1.27';
+const LATEST_SCRIPT = '1.28';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 function checkScriptVersion(v) {
