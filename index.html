@@ -129,7 +129,13 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background
 .statlist{display:flex;flex-direction:column;gap:6px;font-size:.88rem}
 .statlist .num{white-space:nowrap}
 .statlist div{display:flex;justify-content:space-between;gap:8px}
-.bars{display:flex;align-items:flex-end;gap:6px;height:170px;padding-top:18px;overflow-x:auto}
+.bars{height:170px;min-width:0}
+.bars svg{display:block;overflow:visible}
+.bars .yn{font-family:var(--mono);font-size:10px;fill:var(--muted)}
+.bars .yy{font-family:var(--mono);font-size:10px;fill:var(--muted)}
+.bars .ybase{stroke:var(--rule);stroke-width:1}
+.bars .ycursor{stroke:var(--ink);stroke-width:1;stroke-dasharray:3 3}
+.bars .yhit{cursor:default}
 .bar{flex:1 0 26px;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end;min-width:26px}
 .bar .col{width:100%;display:flex;flex-direction:column-reverse;border-radius:3px 3px 0 0;overflow:hidden}
 .bar .col i{display:flex;align-items:center;justify-content:center;width:100%;font-family:var(--mono);font-style:normal;font-size:.62rem;font-weight:600;color:var(--bg);overflow:hidden;line-height:1}
@@ -272,7 +278,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.78rem;re
 
   <section class="grid3">
     <div class="card"><h3>By status</h3><div class="statlist" id="statusList"></div></div>
-    <div class="card"><h3>Books added per year</h3><div class="bars" id="years"></div><div class="yearinfo" id="yearInfo"></div><div class="legend" id="yearLegend"></div></div>
+    <div class="card"><div class="shelfbar"><h3>Books added per year</h3><span class="seg" role="group" aria-label="Chart height"><button type="button" data-yscale="soft" aria-pressed="true" title="Square-root heights: big buying years don't flatten the rest">Smoothed</button><button type="button" data-yscale="true" aria-pressed="false" title="Heights in direct proportion to the counts">True scale</button></span></div><div class="bars" id="years"></div><div class="yearinfo" id="yearInfo"></div><div class="legend" id="yearLegend"></div></div>
     <div class="card"><h3>Most-owned authors</h3><div class="authors" id="authors"></div></div>
   </section>
 
@@ -605,6 +611,8 @@ document.querySelectorAll('[data-pace]').forEach(b => b.onclick = () => {
   try { if (localStorage.getItem(KEY)) $('#notice').hidden = true; } catch {}
   $('#noticeClose').onclick = () => { $('#notice').hidden = true; try { localStorage.setItem(KEY, '1'); } catch {} };
 })();
+document.querySelectorAll('[data-yscale]').forEach(b => b.onclick = () => { S.settings.yearScale = b.dataset.yscale; renderStats(); scheduleSave(); });
+let resizeT; window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(renderStats, 150); });
 function renderAll() { trackReading(); setStore(); $('#spDefault').setAttribute('aria-pressed', S.settings.spineMode !== 'genre'); $('#spGenre').setAttribute('aria-pressed', S.settings.spineMode === 'genre'); renderStats(); renderShelf(); setTimeout(lookupGenres, 0); }
 
 function renderStats() {
@@ -734,9 +742,10 @@ function renderStats() {
   // years
   const yrs = {};
   bs.forEach(b => { if (!b.date) return; const y = b.date.slice(0,4); (yrs[y] ||= {finished:0, reading:0, unread:0, abandoned:0})[b.status]++; });
-  const keys = Object.keys(yrs).sort().slice(-14);
-  const max = Math.max(1, ...keys.map(y => Object.values(yrs[y]).reduce((a,b) => a + b, 0)));
-  const COLPX = 120; // usable column height in px, for deciding when a segment is tall enough to label
+  // Every year from the first purchase to now, so quiet years show as dips instead of disappearing
+  const ys = Object.keys(yrs).map(Number);
+  const keys = [];
+  if (ys.length) { const hi = Math.max(...ys, new Date().getFullYear()); for (let y = Math.max(Math.min(...ys), hi - 24); y <= hi; y++) { keys.push(String(y)); yrs[y] ||= {finished:0, reading:0, unread:0, abandoned:0}; } }
   const allV = {finished:0, reading:0, unread:0, abandoned:0}; bs.forEach(b => { if (b.status in allV) allV[b.status]++; });
   const yearText = y => {
     const v = y === 'all' ? allV : yrs[y], t = v.finished + v.reading + v.unread + v.abandoned;
@@ -746,22 +755,66 @@ function renderStats() {
     parts.push(`<span style="color:var(--shame)">${v.unread} unread</span>`);
     return `<b>${y === 'all' ? 'All books counted' : y}</b>: ${t} book${t === 1 ? '' : 's'} · ${parts.join(' · ')}`;
   };
-  $('#years').innerHTML = keys.length ? keys.map(y => {
-    const t = Object.values(yrs[y]).reduce((a,b) => a + b, 0);
-    const segs = order.map(k => {
-      const n = yrs[y][k]; if (!n) return '';
-      const px = n / max * COLPX;
-      return `<i style="height:${n / t * 100}%;background:${STATUS_COLOR[k]}">${px >= 13 ? n : ''}</i>`;
+  const soft = S.settings.yearScale !== 'true';
+  document.querySelectorAll('[data-yscale]').forEach(b => b.setAttribute('aria-pressed', (b.dataset.yscale === 'soft') === soft));
+  const box = $('#years');
+  if (!keys.length) box.innerHTML = '<p class="muted" style="align-self:center">No purchase dates yet.</p>';
+  else {
+    // Smooth stacked area. "Smoothed" uses a square-root height so one huge buying year doesn't flatten the rest; the numbers stay exact.
+    const W = Math.max(260, box.clientWidth || 320), H = 170, padL = 6, padR = 6, padT = 22, padB = 22;
+    const tot = y => order.reduce((a, k) => a + yrs[y][k], 0);
+    const maxT = Math.max(1, ...keys.map(tot));
+    const f = v => soft ? Math.sqrt(v / maxT) : v / maxT;
+    const X = i => keys.length === 1 ? W / 2 : padL + i * (W - padL - padR) / (keys.length - 1);
+    const Y = v => padT + (1 - f(v)) * (H - padT - padB);
+    // Monotone cubic path through points (no overshoot below zero or above peaks)
+    const smooth = pts => {
+      if (pts.length < 2) return `M${pts[0][0]},${pts[0][1]}`;
+      const n = pts.length, dx = [], m = [], t = [];
+      for (let i = 0; i < n - 1; i++) { dx[i] = pts[i+1][0] - pts[i][0]; m[i] = (pts[i+1][1] - pts[i][1]) / dx[i]; }
+      t[0] = m[0]; t[n-1] = m[n-2];
+      for (let i = 1; i < n - 1; i++) t[i] = m[i-1] * m[i] <= 0 ? 0 : 3 * (dx[i-1] + dx[i]) / ((2*dx[i] + dx[i-1]) / m[i-1] + (dx[i] + 2*dx[i-1]) / m[i]);
+      let d = `M${pts[0][0]},${pts[0][1]}`;
+      for (let i = 0; i < n - 1; i++) d += ` C${pts[i][0] + dx[i]/3},${pts[i][1] + t[i]*dx[i]/3} ${pts[i+1][0] - dx[i]/3},${pts[i+1][1] - t[i+1]*dx[i]/3} ${pts[i+1][0]},${pts[i+1][1]}`;
+      return d;
+    };
+    const cum = keys.map(() => 0);
+    let layers = '';
+    for (const k of order) {
+      const lower = keys.map((y, i) => [X(i), Y(cum[i])]);
+      keys.forEach((y, i) => { cum[i] += yrs[y][k]; });
+      const upper = keys.map((y, i) => [X(i), Y(cum[i])]);
+      if (!keys.some(y => yrs[y][k])) continue;
+      const back = smooth([...lower].reverse()).replace(/^M/, 'L');
+      layers += `<path d="${smooth(upper)} ${back} Z" fill="${STATUS_COLOR[k]}" stroke="var(--paper)" stroke-width="1.5" stroke-linejoin="round"/>`;
+    }
+    const peak = keys.reduce((a, y) => tot(y) > tot(a) ? y : a, keys[0]);
+    const every = Math.ceil(keys.length / 12);
+    const labels = keys.map((y, i) => {
+      const n = tot(y), showN = n && (keys.length <= 16 || y === peak || i === keys.length - 1 || i % every === 0);
+      const showY = i % every === 0 || i === keys.length - 1;
+      return (showN ? `<text x="${X(i)}" y="${Y(n) - 6}" text-anchor="middle" class="yn">${n}</text>` : '') +
+        (showY ? `<text x="${X(i)}" y="${H - 6}" text-anchor="middle" class="yy">'${y.slice(2)}</text>` : '');
     }).join('');
-    return `<div class="bar" tabindex="0" data-y="${y}" title="${y}: ${t} books, ${yrs[y].finished} read, ${yrs[y].unread} unread"><span class="n">${t}</span><div class="col" style="height:${t / max * 100}%">${segs}</div><span class="y">'${y.slice(2)}</span></div>`;
-  }).join('') : '<p class="muted" style="align-self:center">No purchase dates yet.</p>';
+    const colW = (W - padL - padR) / Math.max(1, keys.length - 1);
+    const hits = keys.map((y, i) => `<rect class="yhit" data-y="${y}" data-i="${i}" x="${X(i) - colW / 2}" y="0" width="${colW}" height="${H}" fill="transparent"/>`).join('');
+    box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="Books added per year, stacked by status">
+      <line x1="${padL}" x2="${W - padR}" y1="${H - padB}" y2="${H - padB}" class="ybase"/>${layers}
+      <line class="ycursor" x1="0" x2="0" y1="${padT - 8}" y2="${H - padB}" visibility="hidden"/>${labels}${hits}</svg>`;
+    box.dataset.w = W;
+    box._x = X;
+  }
   const undated = bs.filter(b => !b.date).length;
   const baseInfo = yearText('all');
-  const undatedTxt = undated ? ` <span class="muted">(${fmtInt(undated)} books have no purchase date)</span>` : '';
+  const undatedTxt = (undated ? ` <span class="muted">(${fmtInt(undated)} books have no purchase date)</span>` : '') + (soft && keys.length ? ' <span class="muted">Smoothed heights; numbers are exact.</span>' : '');
+  const cursor = () => box.querySelector('.ycursor');
   $('#yearInfo').innerHTML = baseInfo + undatedTxt;
-  $('#years').onmouseleave = $('#years').onfocusout = () => { $('#yearInfo').innerHTML = baseInfo + undatedTxt; };
-  $('#years').onmouseover = $('#years').onfocusin = e => { const b = e.target.closest('.bar'); if (b) $('#yearInfo').innerHTML = yearText(b.dataset.y) + undatedTxt; };
-  $('#years').onclick = $('#years').onmouseover;
+  box.onmouseleave = () => { $('#yearInfo').innerHTML = baseInfo + undatedTxt; const c = cursor(); if (c) c.setAttribute('visibility', 'hidden'); };
+  box.onmousemove = box.onclick = e => {
+    const r = e.target.closest && e.target.closest('.yhit'); if (!r) return;
+    $('#yearInfo').innerHTML = yearText(r.dataset.y) + undatedTxt;
+    const c = cursor(); if (c) { const x = box._x(+r.dataset.i); c.setAttribute('x1', x); c.setAttribute('x2', x); c.setAttribute('visibility', 'visible'); }
+  };
   $('#yearLegend').innerHTML = order.map(k => `<span><i style="background:${STATUS_COLOR[k]}"></i>${STATUS[k]}</span>`).join('');
 
   // authors
@@ -1358,7 +1411,7 @@ async function lookupBookInfo() {
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '1.28';
+const LATEST_SCRIPT = '1.29';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 function checkScriptVersion(v) {
