@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.36
+// @version      1.37
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -213,7 +213,10 @@ function parseBookInfo(html) {
   const cats = [];
   if (crumbs) cats.push(crumbs.textContent.replace(/\s+/g, ' ').trim());
   for (const m of text.matchAll(/#[\d,]+ in ([^#(]{3,80}?)(?= \(| #|$)/g)) if (!/^Kindle Store$/i.test(m[1].trim())) cats.push(m[1].trim());
-  return {price, pages, cats: cats.slice(0, 6)};
+  // The trail as separate steps, and the best-seller lists, so the page can use Amazon's genre names as they are
+  const trail = crumbs ? [...crumbs.querySelectorAll('li a')].map(a => a.textContent.replace(/\s+/g, ' ').trim()).filter(Boolean) : [];
+  const best = cats.slice(crumbs ? 1 : 0).map(c => c.replace(/\s*Customer Reviews.*$/i, '').trim());
+  return {price, pages, cats: cats.slice(0, 6), trail, best: best.slice(0, 5)};
 }
 const KLC_CORE = {
   // Look up a few books' Amazon pages. blocked = Amazon asked for a CAPTCHA, so stop for now.
@@ -491,7 +494,7 @@ GM_addStyle(`
   --accent:#27408b; --accent-soft:#dde3f4; --shame:#a3322a; --shame-soft:#f3dedb;
   --ok:#2f6b45; --warn:#9a6a12;
   --cloth-1:#6b3a3a; --cloth-2:#2e4a5c; --cloth-3:#5a5a2e; --cloth-4:#3b3551; --cloth-5:#7a5230; --cloth-6:#2f4f3f; --spine-ink:#f2efe6; --wood:#8a5a36; --wood-dark:#5e3b22; --wood-back:#d9cbb8;
-  --g-mystery:#2f3e5c; --g-romance:#a3445f; --g-scifi:#2f6f86; --g-horror:#5b2330; --g-fiction:#7a6440; --g-history:#7a4a2a; --g-selfhelp:#3f6b4f; --g-cooking:#8a7a2e; --g-humor:#b8692a; --g-kids:#6f5aa0; --g-comics:#b0472f; --g-nonfiction:#4f5d63; --g-unknown:#8d8a84;
+  --g-mystery:#2f3e5c; --g-romance:#a3445f; --g-erotica:#7b3f7a; --g-scifi:#2f6f86; --g-horror:#5b2330; --g-fiction:#7a6440; --g-history:#7a4a2a; --g-selfhelp:#3f6b4f; --g-cooking:#8a7a2e; --g-humor:#b8692a; --g-kids:#6f5aa0; --g-comics:#b0472f; --g-nonfiction:#4f5d63; --g-unknown:#8d8a84;
   --display:"Literata", Georgia, "Times New Roman", serif;
   --body:"Literata", Georgia, serif;
   --mono:"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -501,14 +504,14 @@ GM_addStyle(`
   --accent:#9fb0ff; --accent-soft:#232c4a; --shame:#f08a7e; --shame-soft:#3a2220;
   --ok:#7fc89a; --warn:#e2b458;
   --cloth-1:#8a4a4a; --cloth-2:#3d6278; --cloth-3:#77773c; --cloth-4:#524a70; --cloth-5:#946642; --cloth-6:#3e6853; --spine-ink:#f6f3ea; --wood:#6b4529; --wood-dark:#40291a; --wood-back:#231c17;
-  --g-mystery:#41558a; --g-romance:#b8577a; --g-scifi:#3a8aa6; --g-horror:#7a3040; --g-fiction:#93794c; --g-history:#95603a; --g-selfhelp:#4f8a63; --g-cooking:#a09033; --g-humor:#c97a35; --g-kids:#8670bd; --g-comics:#c45a3e; --g-nonfiction:#64757d; --g-unknown:#6f6c67;
+  --g-mystery:#41558a; --g-romance:#b8577a; --g-erotica:#a0609e; --g-scifi:#3a8aa6; --g-horror:#7a3040; --g-fiction:#93794c; --g-history:#95603a; --g-selfhelp:#4f8a63; --g-cooking:#a09033; --g-humor:#c97a35; --g-kids:#8670bd; --g-comics:#c45a3e; --g-nonfiction:#64757d; --g-unknown:#6f6c67;
   color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#121517; --paper:#1a1e21; --ink:#e7e8e3; --muted:#9aa29c; --rule:#2d3336;
   --accent:#9fb0ff; --accent-soft:#232c4a; --shame:#f08a7e; --shame-soft:#3a2220;
   --ok:#7fc89a; --warn:#e2b458;
   --cloth-1:#8a4a4a; --cloth-2:#3d6278; --cloth-3:#77773c; --cloth-4:#524a70; --cloth-5:#946642; --cloth-6:#3e6853; --spine-ink:#f6f3ea; --wood:#6b4529; --wood-dark:#40291a; --wood-back:#231c17;
-  --g-mystery:#41558a; --g-romance:#b8577a; --g-scifi:#3a8aa6; --g-horror:#7a3040; --g-fiction:#93794c; --g-history:#95603a; --g-selfhelp:#4f8a63; --g-cooking:#a09033; --g-humor:#c97a35; --g-kids:#8670bd; --g-comics:#c45a3e; --g-nonfiction:#64757d; --g-unknown:#6f6c67;
+  --g-mystery:#41558a; --g-romance:#b8577a; --g-erotica:#a0609e; --g-scifi:#3a8aa6; --g-horror:#7a3040; --g-fiction:#93794c; --g-history:#95603a; --g-selfhelp:#4f8a63; --g-cooking:#a09033; --g-humor:#c97a35; --g-kids:#8670bd; --g-comics:#c45a3e; --g-nonfiction:#64757d; --g-unknown:#6f6c67;
   color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -883,22 +886,36 @@ function statusFromProgress(p) {
 
 // ---------- rendering ----------
 // ---------- genres ----------
-const GENRES = {mystery:'Mystery & Thriller', romance:'Romance', scifi:'Sci-Fi & Fantasy', horror:'Horror', fiction:'General Fiction', history:'History & Biography', selfhelp:'Self-help & Health', cooking:'Cooking & Food', humor:'Humor', kids:'Kids & YA', comics:'Comics', nonfiction:'Other Nonfiction', unknown:'Unknown'};
-// Genre from Amazon's own categories for the book: the Kindle Store path ("Kindle eBooks › Mystery, Thriller & Suspense › Thrillers")
-// plus its best-seller categories. Rules are checked top to bottom; the first match wins.
-function genreFromCategories(cats) {
-  const c = (cats || []).join(' | ').toLowerCase();
-  if (!c) return null;
-  const rules = [
-    ['comics', /comics|graphic novel|manga/], ['kids', /juvenile|young adult|children|\bteen/], ['cooking', /cooking|cookbook|recipes|baking|\bfood|beverages|cocktail/],
-    ['history', /true crime|biograph|memoir|\bhistory\b/], ['horror', /horror|ghost|paranormal/], ['romance', /romance|romantic/],
-    ['scifi', /science fiction|fantasy|dystopian|magic|sci-fi/], ['mystery', /mystery|thriller|suspense|crime|detective|noir/],
-    ['humor', /humor|comed/], ['selfhelp', /self-help|health|fitness|psychology|mind, body|religion|spiritual|business|relationships|parenting/],
-    ['fiction', /fiction|literature|novel/],
-  ];
-  for (const [g, re] of rules) if (re.test(c)) return g;
-  return 'nonfiction';
+// The genre is Amazon's own: the main category in the book's Kindle Store trail ("Kindle eBooks › Romance › Paranormal").
+// The most common ones get their own spine color; everything else is "Other" but keeps its real name.
+const GENRES = {romance:'Romance', scifi:'Science Fiction & Fantasy', mystery:'Mystery, Thriller & Suspense', horror:'Horror', erotica:'Erotica', fiction:'Literature & Fiction', kids:'Teen & Young Adult', comics:'Comics, Manga & Graphic Novels', humor:'Humor & Entertainment', cooking:'Cookbooks, Food & Wine', selfhelp:'Self-Help', history:'History', nonfiction:'Other', unknown:'Unknown'};
+const GENRE_KEY = Object.fromEntries(Object.entries(GENRES).filter(([k]) => k !== 'nonfiction' && k !== 'unknown').map(([k, v]) => [v.toLowerCase(), k]));
+const cleanCat = s => String(s || '').replace(/\s*Customer Reviews.*$/i, '').replace(/\s+eBooks$/i, '').trim();
+// inf: {trail:[...crumbs], best:[...best-seller lists]} from the sync script (older scripts send cats: [crumb text, ...lists])
+function amazonGenre(inf) {
+  let trail = inf.trail, best = inf.best;
+  if (!trail && inf.cats) { const c0 = inf.cats[0] || ''; trail = c0.includes('›') ? c0.split('›').map(x => x.trim()) : []; best = c0.includes('›') ? inf.cats.slice(1) : inf.cats; }
+  trail = (trail || []).map(x => String(x || '').trim()).filter(Boolean); best = (best || []).map(cleanCat).filter(x => x && !/^kindle store$/i.test(x));
+  const root = trail.findIndex(x => /^kindle ebooks$|^ebooks$|^books$/i.test(x));
+  const path = root >= 0 ? trail.slice(root + 1) : trail.filter(x => !/^kindle store$/i.test(x));
+  const sub = best[0] || (path.length > 1 ? path[path.length - 1] : '');
+  let name = path[0] || '';
+  // "Literature & Fiction" is Amazon's catch-all: when the trail names a more specific genre further down, use that one
+  if (/^literature & fiction$/i.test(name)) { const more = path.slice(1).find(x => GENRE_KEY[x.toLowerCase()] && !/^literature & fiction$/i.test(x)); if (more) name = more; }
+  // Best-seller lists, read when the trail is missing or only says the catch-all (romance first, so "Paranormal Romance" is romance)
+  const fromLists = () => {
+    const c = best.join(' | ').toLowerCase(); if (!c) return null;
+    const rules = [['erotica', /erotica/], ['romance', /romance|romantic/], ['comics', /comics|graphic novel|manga/], ['kids', /young adult|\bteen/], ['cooking', /cooking|cookbook|recipes|baking/],
+      ['horror', /horror/], ['scifi', /science fiction|fantasy|dystopian/], ['mystery', /mystery|thriller|suspense|crime|detective/], ['humor', /humor|comed/], ['selfhelp', /self-help/], ['history', /\bhistory\b/], ['fiction', /fiction|literature/]];
+    const hit = rules.find(([, re]) => re.test(c));
+    return hit ? {key: hit[0], name: GENRES[hit[0]], sub} : {key: 'nonfiction', name: best[0], sub};
+  };
+  if (!name) return fromLists();
+  if (/^literature & fiction$/i.test(name)) { const l = fromLists(); if (l && l.key !== 'fiction' && l.key !== 'nonfiction') return l; }
+  const key = GENRE_KEY[name.toLowerCase()] || 'nonfiction';
+  return {key, name, sub};
 }
+const genreLabel = b => b.genre === 'nonfiction' && b.genreName ? b.genreName : GENRES[b.genre] || '';
 function genreStatus(msg) { const el = $('#genreStatus'); el.hidden = !msg; el.textContent = msg || ''; }
 // Genres, page counts and today's prices all come from one look at each book's Amazon page (needs the sync script)
 function lookupGenres() {
@@ -1003,12 +1020,12 @@ function renderStats() {
       const r = (h % 23 === 0 && i > 0) ? -4 : 0;
       const nw = isNew(b);
       const lean = !nw && r !== 0;
-      return `<span class="spine${nw ? ' new' : ''}${lean ? ' lean' : ''}" style="--h:${ht}px;--w:${w}px;--r:${lean ? r : 0}deg;--c:${S.settings.spineMode === 'genre' ? `var(--g-${GENRES[b.genre] ? b.genre : 'unknown'})` : cloth(h)}" title="${esc(b.title)} — ${esc(b.author)} · ${p} pages${nw ? ' · bought ' + b.date : ''}"><b>${esc(b.title)}</b></span>`;
+      return `<span class="spine${nw ? ' new' : ''}${lean ? ' lean' : ''}" style="--h:${ht}px;--w:${w}px;--r:${lean ? r : 0}deg;--c:${S.settings.spineMode === 'genre' ? `var(--g-${GENRES[b.genre] ? b.genre : 'unknown'})` : cloth(h)}" title="${esc(b.title)} — ${esc(b.author)} · ${p} pages${genreLabel(b) ? ' · ' + esc(genreLabel(b)) + (b.genreSub && b.genreSub !== genreLabel(b) ? ' › ' + esc(b.genreSub) : '') : ''}${nw ? ' · bought ' + b.date : ''}"><b>${esc(b.title)}</b></span>`;
     }).join('') + '</div>';
     const gl = $('#genreLegend');
     if (S.settings.spineMode === 'genre') {
       const cnt = {}; pile.forEach(b => { const g = GENRES[b.genre] ? b.genre : 'unknown'; cnt[g] = (cnt[g] || 0) + 1; });
-      gl.innerHTML = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a]).map(g => `<span><i style="background:var(--g-${g})"></i>${GENRES[g]} <span class="num muted">${cnt[g]} · ${Math.round(cnt[g] / pile.length * 100)}%</span></span>`).join('')
+      gl.innerHTML = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a]).map(g => `<span${g === 'nonfiction' ? ` title="${esc([...new Set(pile.filter(b => b.genre === 'nonfiction').map(b => b.genreName).filter(Boolean))].join(', '))}"` : ''}><i style="background:var(--g-${g})"></i>${GENRES[g]} <span class="num muted">${cnt[g]} · ${Math.round(cnt[g] / pile.length * 100)}%</span></span>`).join('')
         + (pile.length > SHELF ? `<span class="muted">Each genre gets its share of the ${SHELF} spines on the shelf.</span>` : '');
       gl.hidden = false;
     } else gl.hidden = true;
@@ -1545,7 +1562,7 @@ function libraryXlsx() {
   const rows = [...S.books].sort((a, b) => (a.title || '').localeCompare(b.title || '')).map(b => [
     b.title || '', b.author || '', STATUS[b.status] || b.status || '', Math.round(b.progress || 0), b.pages > 0 ? b.pages : null,
     hasPaid(b) ? {money: +b.price} : null, b.kp != null ? {money: b.kp} : null, /^\d{4}-\d{2}-\d{2}$/.test(b.date || '') ? {date: b.date} : null,
-    SOURCE_NAME[b.source] || b.source || '', GENRES[b.genre] && b.genre !== 'unknown' ? GENRES[b.genre] : '', b.rating || null, counted(b) ? 'Yes' : 'No', b.asin || '',
+    SOURCE_NAME[b.source] || b.source || '', b.genre && b.genre !== 'unknown' ? genreLabel(b) + (b.genreSub && b.genreSub !== genreLabel(b) ? ' › ' + b.genreSub : '') : '', b.rating || null, counted(b) ? 'Yes' : 'No', b.asin || '',
   ]);
   return buildXlsx(header, rows, [46, 24, 11, 11, 8, 11, 13, 14, 18, 20, 8, 10, 13]);
 }
@@ -1698,7 +1715,7 @@ async function lookupBookInfo() {
   if (kpRunning || !syncOn || S.demo) return;
   const MONTH = 30 * 864e5, now = Date.now();
   const needsPrice = b => !hasPaid(b) && b.source !== 'free' && b.source !== 'sample' && (!b.kpTime || now - b.kpTime > MONTH);
-  const todo = S.books.filter(b => b.asin && (!b.infoTime || needsPrice(b)))
+  const todo = S.books.filter(b => b.asin && (!b.infoTime || needsPrice(b) || (b.genreV !== 2 && b.genreSrc !== 'manual')))
     .sort((a, b) => (a.status === 'unread' ? 0 : 1) - (b.status === 'unread' ? 0 : 1) || (counted(a) ? 0 : 1) - (counted(b) ? 0 : 1));
   if (!todo.length) { genreStatus(''); stage('details', 'ok', 'up to date'); cardMaybeDone(); return; }
   kpRunning = true;
@@ -1718,7 +1735,8 @@ async function lookupBookInfo() {
         if (!hasPaid(b) && inf.price != null) { b.kp = inf.price; found++; }
         b.kpTime = now;
         if (!(b.pages > 0) && inf.pages) { b.pages = inf.pages; b.pagesSrc = 'amazon'; }
-        if (b.genreSrc !== 'manual') { const g = genreFromCategories(inf.cats); if (g) { b.genre = g; b.genreSrc = 'amazon'; } }
+        if (b.genreSrc !== 'manual') { const g = amazonGenre(inf); if (g) { b.genre = g.key; b.genreName = g.name; b.genreSub = g.sub; b.genreSrc = 'amazon'; } }
+        b.genreV = 2;
         b.infoTime = now; done++;
       }
       renderStats(); renderShelf(); scheduleSave();
@@ -1731,7 +1749,7 @@ async function lookupBookInfo() {
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '1.36';
+const LATEST_SCRIPT = '1.37';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 let scriptVer = '';
@@ -1745,6 +1763,7 @@ const lsSet1 = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.r
 
 // ---------- what's new (shown in Settings) ----------
 const CHANGES = [
+  ['1.37', ['Genres are Amazon\'s own now (Romance, Science Fiction & Fantasy…), with the sub-genre when you point at a spine', 'Fixed: paranormal romance was being counted as Horror', 'Your library gets one more look at each book page to pick these up']],
   ['1.36', ['The Sync box folds to a single line with an arrow; it folds itself when a sync finishes cleanly']],
   ['1.35', ['Prices paid fill in about 4 times faster: up to 150 orders per sync, paced so Amazon doesn\'t object', 'Library value shows where every dollar comes from (hover the line under it)']],
   ['1.34', ['Step-by-step setup the first time you visit', 'Sync progress shows each step with a progress bar, and problems in plain English', 'Updates and what\'s new live in Settings; the page updates itself']],
