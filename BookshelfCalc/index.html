@@ -1184,10 +1184,10 @@ function startSync() {
   if (hasCore) enableSync();
   else postBridge({type: 'hello'});
 }
-function bridgeSync(force) {
+function bridgeSync(force, paid) {
   return new Promise((resolve, reject) => {
     bridgeWaiters = {resolve, reject};
-    postBridge({type: 'sync', force});
+    postBridge({type: 'sync', force, paid});
     setTimeout(() => { if (bridgeWaiters) { bridgeWaiters = null; reject(new Error('The sync script did not answer. Reload the page.')); } }, 180000);
   });
 }
@@ -1227,7 +1227,8 @@ async function runSync(force) {
   try {
     await storeReady;
     setSync('Syncing…');
-    const data = hasCore ? await KLC_CORE.sync(force, msg => setSync(msg)) : await bridgeSync(force);
+    const paid = S.books.filter(b => b.asin && hasPaid(b)).map(b => b.asin); // already priced: the script never looks these up again
+    const data = hasCore ? await KLC_CORE.sync(force, msg => setSync(msg), paid) : await bridgeSync(force, paid);
     const gr = normGoodreads(data.goodreads);
     const kItems = data.kindle?.items || [];
     if (!gr.length && !kItems.length) { setSync([data.grErr, data.kErr].filter(Boolean).join(' · ') || 'Nothing to sync yet.', 'local'); return; }
@@ -1238,7 +1239,7 @@ async function runSync(force) {
     let priced = 0;
     if (data.prices) for (const b of S.books) {
       const v = b.asin && data.prices[b.asin];
-      if (typeof v === 'number' && !b.priceManual) { b.price = v; priced++; }
+      if (typeof v === 'number' && !hasPaid(b)) { b.price = v; b.priceSrc = 'order'; priced++; } // once a price paid is set it is locked
     }
     renderAll(); scheduleSave();
     const when = new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});

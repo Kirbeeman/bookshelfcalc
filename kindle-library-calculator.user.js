@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.14
+// @version      1.15
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -149,9 +149,11 @@ async function fetchOwnership(progress) {
   return items;
 }
 // Prices paid, read from each order's summary page (only the item price is kept; nothing else from the page is stored)
-async function fetchPrices(owned, progress) {
+async function fetchPrices(owned, progress, paid = []) {
   const prices = JSON.parse(GM_getValue('prices', '{}') || '{}');
-  const todo = owned.filter(i => i.originType === 'Purchase' && i.orderDetailURL && !(i.asin in prices));
+  // Skip books whose price paid is already known (found earlier, or entered/imported on the page): each order is read at most once
+  const known = new Set(paid.map(a => String(a).toUpperCase()));
+  const todo = owned.filter(i => i.originType === 'Purchase' && i.orderDetailURL && !(i.asin in prices) && !known.has(String(i.asin).toUpperCase()));
   const byOrder = new Map();
   todo.forEach(i => { const k = i.orderId || i.orderDetailURL; if (!byOrder.has(k)) byOrder.set(k, []); byOrder.get(k).push(i); });
   let done = 0;
@@ -220,7 +222,7 @@ const KLC_CORE = {
     return JSON.parse(r.text);
   },
   // force = the Sync now button: always refresh the Kindle list. Otherwise reuse it for 6 hours.
-  async sync(force, progress = () => {}) {
+  async sync(force, progress = () => {}, paid = []) {
     const out = {goodreads: [], grErr: '', kindle: null, kErr: ''};
     try { out.goodreads = await fetchGoodreads(progress); } catch (e) { out.grErr = e.message || String(e); }
     let k = null; try { k = JSON.parse(GM_getValue('kindle', 'null')); } catch {}
@@ -236,7 +238,7 @@ const KLC_CORE = {
     }
     out.owned = o;
     if (o && o.items) {
-      try { out.prices = await fetchPrices(o.items, progress); } catch (e) { out.pErr = e.message || String(e); }
+      try { out.prices = await fetchPrices(o.items, progress, paid); } catch (e) { out.pErr = e.message || String(e); }
     }
     return out;
   },
@@ -254,7 +256,7 @@ if (onSite) {
       post({type: 'kpriceResult', id: d.id, data: JSON.stringify(data)});
     }
     else if (d.type === 'sync') {
-      const data = await KLC_CORE.sync(!!d.force, msg => post({type: 'progress', msg}));
+      const data = await KLC_CORE.sync(!!d.force, msg => post({type: 'progress', msg}), d.paid || []);
       post({type: 'result', data: JSON.stringify(data)});
     }
   });
@@ -1482,10 +1484,10 @@ function startSync() {
   if (hasCore) enableSync();
   else postBridge({type: 'hello'});
 }
-function bridgeSync(force) {
+function bridgeSync(force, paid) {
   return new Promise((resolve, reject) => {
     bridgeWaiters = {resolve, reject};
-    postBridge({type: 'sync', force});
+    postBridge({type: 'sync', force, paid});
     setTimeout(() => { if (bridgeWaiters) { bridgeWaiters = null; reject(new Error('The sync script did not answer. Reload the page.')); } }, 180000);
   });
 }
@@ -1525,7 +1527,8 @@ async function runSync(force) {
   try {
     await storeReady;
     setSync('Syncing…');
-    const data = hasCore ? await KLC_CORE.sync(force, msg => setSync(msg)) : await bridgeSync(force);
+    const paid = S.books.filter(b => b.asin && hasPaid(b)).map(b => b.asin); // already priced: the script never looks these up again
+    const data = hasCore ? await KLC_CORE.sync(force, msg => setSync(msg), paid) : await bridgeSync(force, paid);
     const gr = normGoodreads(data.goodreads);
     const kItems = data.kindle?.items || [];
     if (!gr.length && !kItems.length) { setSync([data.grErr, data.kErr].filter(Boolean).join(' · ') || 'Nothing to sync yet.', 'local'); return; }
@@ -1536,7 +1539,7 @@ async function runSync(force) {
     let priced = 0;
     if (data.prices) for (const b of S.books) {
       const v = b.asin && data.prices[b.asin];
-      if (typeof v === 'number' && !b.priceManual) { b.price = v; priced++; }
+      if (typeof v === 'number' && !hasPaid(b)) { b.price = v; b.priceSrc = 'order'; priced++; } // once a price paid is set it is locked
     }
     renderAll(); scheduleSave();
     const when = new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
