@@ -40,6 +40,8 @@ Your books are stored only in your own browser. Nothing is sent to a server, and
 
 Statuses are **Unread**, **Reading**, **Finished** and **Gave up**. Only **Unread** books go on the Shelf of Shame.
 
+Books bought in the **last 5 days** are outlined in gold and placed first on the Shelf of Shame, with a *new* tag in the library table. Kindle doesn't report purchase dates, so a Kindle book that shows up in a sync after your first import is dated the day it first appeared. Dates from the Kindle for PC app file or an Amazon orders file are exact.
+
 ---
 
 ## Two ways to use it

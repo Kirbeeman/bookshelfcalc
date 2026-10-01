@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.3
+// @version      1.4
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -223,7 +223,7 @@ document.body.innerHTML = `<div class="wrap">
 
   <section class="pile" aria-labelledby="pileH">
     <div>
-      <div class="pile-head"><h3>Shelf of Shame</h3><h2 class="pile-title" id="pileH">0 unread books</h2></div>
+      <div class="pile-head"><h3>Shelf of Shame</h3><h2 class="pile-title" id="pileH">0 unread books</h2><div class="newnote" id="pileNew" hidden></div></div>
       <div id="stack"></div>
     </div>
     <div class="pile-facts">
@@ -431,6 +431,10 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background
 /* pile */
 .pile{display:grid;grid-template-columns:1fr;gap:24px;background:var(--paper);border:1px solid var(--rule);border-radius:10px;padding:24px}
 .pile-head{display:flex;flex-direction:column;gap:6px}
+.newnote{font-size:.88rem;display:flex;align-items:center;gap:8px}
+.newnote i{width:12px;height:12px;border-radius:2px;outline:2px solid var(--warn);outline-offset:1px;background:var(--cloth-2);display:inline-block}
+.spine.new{outline:3px solid var(--warn);outline-offset:1px;position:relative;z-index:1}
+.pill.new{color:var(--warn);border-color:var(--warn)}
 .pile-title{font-size:2rem;color:var(--shame)}
 .bookcase{--row:176px;background:var(--wood-back);border:10px solid var(--wood);border-top-width:12px;border-radius:4px;padding:0 10px;font-size:0;line-height:var(--row);min-height:calc(var(--row) + 12px);
   background-image:repeating-linear-gradient(to bottom,transparent 0,transparent calc(var(--row) - 12px),var(--wood) calc(var(--row) - 12px),var(--wood) calc(var(--row) - 3px),var(--wood-dark) calc(var(--row) - 3px),var(--wood-dark) var(--row));margin-top:12px}
@@ -667,6 +671,8 @@ const pagesOf = b => b.pages > 0 ? b.pages : S.settings.defPages;
 const valueOf = b => b.source === 'purchase' ? (b.price != null && b.price !== '' ? +b.price : S.settings.defPrice) : (+b.price || 0);
 const hoursFor = p => p * S.settings.minPerPage / 60;
 const remainingPages = b => b.status === 'unread' ? pagesOf(b) : b.status === 'reading' ? pagesOf(b) * (1 - (b.progress || 0) / 100) : 0;
+const recentCutoff = () => new Date(Date.now() - 5 * 864e5).toISOString().slice(0,10);
+const isNew = b => !!b.date && b.date >= recentCutoff();
 const STATUS = {unread:'Unread', reading:'Reading', finished:'Finished', abandoned:'Gave up'};
 const STATUS_COLOR = {finished:'var(--ok)', reading:'var(--accent)', unread:'var(--shame)', abandoned:'var(--muted)'};
 const SOURCE = {purchase:'', free:'free', ku:'KU', prime:'Prime', sample:'sample', other:'borrowed'};
@@ -715,18 +721,23 @@ function renderStats() {
 
   // pile
   $('#pileH').textContent = `${fmtInt(pile.length)} unread book${pile.length === 1 ? '' : 's'}`;
+  const nNew = pile.filter(isNew).length;
+  $('#pileNew').hidden = !nNew;
+  $('#pileNew').innerHTML = nNew ? `<i></i>${nNew} bought in the last 5 days, shown first` : '';
   const stack = $('#stack');
   if (!pile.length) {
     stack.innerHTML = n ? '<div class="pile-empty">The shelf is empty. Every book has been opened.</div>' : '<div class="pile-empty muted">Import your library to fill the shelf.</div>';
   } else {
-    const shown = [...pile].sort((a,b) => (a.date || '9').localeCompare(b.date || '9')).slice(0, 72);
+    const fresh = pile.filter(isNew).sort((a,b) => b.date.localeCompare(a.date));
+    const shown = [...fresh, ...pile.filter(b => !isNew(b)).sort((a,b) => (a.date || '9').localeCompare(b.date || '9'))].slice(0, 72);
     const cloth = n => `var(--cloth-${n % 6 + 1})`;
     let html = '<div class="bookcase">' + shown.map((b, i) => {
       const h = hash(b.id + b.title), p = pagesOf(b);
       const w = Math.round(Math.max(18, Math.min(46, 12 + p / 22)));
       const ht = 112 + (h % 46);
       const r = (h % 23 === 0 && i > 0) ? -4 : 0;
-      return `<span class="spine" style="--h:${ht}px;--w:${w}px;--r:${r}deg;--c:${cloth(h)}" title="${esc(b.title)} — ${esc(b.author)} · ${p} pages">${esc(b.title)}</span>`;
+      const nw = isNew(b);
+      return `<span class="spine${nw ? ' new' : ''}" style="--h:${ht}px;--w:${w}px;--r:${nw ? 0 : r}deg;--c:${cloth(h)}" title="${esc(b.title)} — ${esc(b.author)} · ${p} pages${nw ? ' · bought ' + b.date : ''}">${esc(b.title)}</span>`;
     }).join('') + '</div>';
     if (pile.length > shown.length) html += `<div class="more">+ ${fmtInt(pile.length - shown.length)} more that didn't fit on the shelf</div>`;
     stack.innerHTML = html;
@@ -830,7 +841,7 @@ function renderShelf() {
   document.querySelectorAll('th button').forEach(b => { if (b.dataset.k === k) b.dataset.dir = dir; else delete b.dataset.dir; });
   const shown = list.slice(0, S.limit);
   $('#rows').innerHTML = shown.length ? shown.map(b => {
-    const src = SOURCE[b.source] ? `<span class="pill">${SOURCE[b.source]}</span>` : '';
+    const src = (SOURCE[b.source] ? `<span class="pill">${SOURCE[b.source]}</span>` : '') + (isNew(b) ? '<span class="pill new">new</span>' : '');
     const pr = b.price != null && b.price !== '' ? fmtMoney(+b.price) : (b.source === 'purchase' ? `<span class="est">~${fmtMoney(S.settings.defPrice)}</span>` : '—');
     const pg = b.pages > 0 ? fmtInt(b.pages) : `<span class="est">~${S.settings.defPages}</span>`;
     return `<tr data-id="${esc(b.id)}">
@@ -1094,6 +1105,7 @@ const surname = a => { const w = String(a || '').toLowerCase().replace(/[^a-z ]/
 
 function merge(incoming, replace, kind, addNew = true) {
   if (replace) S.books = [];
+  const hadBooks = S.books.length > 0, today = new Date().toISOString().slice(0,10);
   const byAsin = new Map(), byKey = new Map(), byTitle = new Map();
   const index = b => {
     if (b.asin) byAsin.set(b.asin.toUpperCase(), b);
@@ -1124,6 +1136,8 @@ function merge(incoming, replace, kind, addNew = true) {
         price: inc.price ?? null, date: inc.date || '', status: inc.status || 'unread', progress: inc.progress ?? 0,
         rating: inc.rating || 0, source: inc.source || 'purchase',
       };
+      // A Kindle book that shows up after the first import was almost certainly just bought
+      if (!b.date && hadBooks && kind === 'kindle') { b.date = today; b.dateEst = true; }
       S.books.push(b); index(b); added++;
     }
   }
