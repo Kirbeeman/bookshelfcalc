@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.17
+// @version      1.18
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -330,6 +330,11 @@ document.body.innerHTML = `<div class="wrap">
     <div class="row"><button class="btn primary" id="bannerImport">Import my Kindle books</button><button class="btn" id="bannerEmpty">Start empty</button></div>
   </div>
 
+  <div class="notice" id="notice" role="note">
+    <p><strong>Heads up: this calculator is good, not perfect.</strong> It works with whatever Amazon and Goodreads are willing to share, so a few titles won't match up, and some genres, page counts and prices are best guesses. Click any book's title to fix it. Your edits always win and are never overwritten by a sync.</p>
+    <button type="button" class="x" id="noticeClose" aria-label="Dismiss this note">×</button>
+  </div>
+
   <section class="tiles" aria-label="Library summary">
     <div class="tile"><h3>Books</h3><div class="big" id="tBooks">0</div><div class="sub" id="tBooksSub"></div></div>
     <div class="tile"><h3>Library value</h3><button type="button" class="reveal" id="revealValue" aria-pressed="false"><span class="big" id="tValue">$0</span><span class="sub" id="tValueSub"></span><span class="hint" id="revealHint">Click to reveal</span></button></div>
@@ -536,6 +541,9 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background
 .store.db i{background:var(--ok)} .store.local i{background:var(--warn)} .store.demo i{background:var(--accent)}
 .actions{display:flex;flex-wrap:wrap;gap:8px}
 
+.notice{border:1px solid var(--rule);border-left:4px solid var(--warn);background:var(--paper);border-radius:8px;padding:10px 12px 10px 16px;display:flex;gap:12px;align-items:flex-start;justify-content:space-between;font-size:.9rem}
+.notice p{margin:0;max-width:80ch}
+.notice .x{flex:none}
 .banner{background:var(--accent-soft);border:1px solid var(--accent);border-radius:8px;padding:12px 16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
 .banner p{margin:0;max-width:70ch}
 
@@ -895,6 +903,11 @@ document.querySelectorAll('[data-pace]').forEach(b => b.onclick = () => {
   S.settings.pagesPerDay = PACES[b.dataset.pace]; S.settings.paceSet = true;
   renderStats(); scheduleSave();
 });
+(() => { // the heads-up note stays dismissed in this browser
+  const KEY = 'kindle-calc-notice-dismissed';
+  try { if (localStorage.getItem(KEY)) $('#notice').hidden = true; } catch {}
+  $('#noticeClose').onclick = () => { $('#notice').hidden = true; try { localStorage.setItem(KEY, '1'); } catch {} };
+})();
 function renderAll() { setStore(); $('#spDefault').setAttribute('aria-pressed', S.settings.spineMode !== 'genre'); $('#spGenre').setAttribute('aria-pressed', S.settings.spineMode === 'genre'); renderStats(); renderShelf(); setTimeout(lookupGenres, 0); }
 
 function renderStats() {
@@ -967,7 +980,7 @@ function renderStats() {
   if (leftPages > 0) {
     const d = new Date(Date.now() + days * 864e5);
     $('#fClear').textContent = d.toLocaleDateString(undefined, {month:'short', year:'numeric'});
-    $('#fClearL').textContent = `everything read at ${S.settings.pagesPerDay} pages a day (${days > 730 ? (days/365).toFixed(1) + ' years' : fmtInt(days) + ' days'}), if you stop buying`;
+    $('#fClearL').textContent = `everything read at ${S.settings.pagesPerDay} pages a day (${days > 730 ? (days/365).toFixed(1) + ' years' : fmtInt(days) + ' days'}), or until your next 1-Click purchase`;
   } else { $('#fClear').textContent = 'Done'; $('#fClearL').textContent = 'nothing left to read'; }
   const dated = pile.filter(b => b.date && !b.dateEst).sort((a,b) => a.date.localeCompare(b.date));
   if (dated.length) {

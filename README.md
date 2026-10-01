@@ -7,6 +7,8 @@ A SteamDB-style calculator for your Kindle library. It shows how many books you 
 - **With the free sync script installed** (Tampermonkey), the site fills itself in from your Kindle library and your Goodreads shelves every time you open it. Nothing to download, export or upload, and no other site to visit.
 - **Without it** (or on a phone), the same site works from files you import.
 
+> **Heads up: it's good, not perfect.** The calculator only knows what Amazon and Goodreads are willing to share. Expect a few titles that don't match between the two, and some genres, page counts and prices that are best guesses. Click any book's title in the library to fix it. Your edits always win and are never overwritten by a sync. See [Known limits](#known-limits).
+
 Your books are stored only in your own browser. Nothing is sent to a server, and nobody else who visits the site can see your library.
 
 ---
