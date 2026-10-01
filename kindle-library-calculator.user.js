@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.29
+// @version      1.30
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -370,7 +370,7 @@ document.body.innerHTML = `<div class="wrap">
 
   <section class="grid3">
     <div class="card"><h3>By status</h3><div class="statlist" id="statusList"></div></div>
-    <div class="card"><div class="shelfbar"><h3>Books added per year</h3><span class="seg" role="group" aria-label="Chart height"><button type="button" data-yscale="soft" aria-pressed="true" title="Square-root heights: big buying years don't flatten the rest">Smoothed</button><button type="button" data-yscale="true" aria-pressed="false" title="Heights in direct proportion to the counts">True scale</button></span></div><div class="bars" id="years"></div><div class="yearinfo" id="yearInfo"></div><div class="legend" id="yearLegend"></div></div>
+    <div class="card"><h3>Books added per year</h3><div class="bars" id="years"></div><div class="yearinfo" id="yearInfo"></div><div class="legend" id="yearLegend"></div></div>
     <div class="card"><h3>Most-owned authors</h3><div class="authors" id="authors"></div></div>
   </section>
 
@@ -616,7 +616,7 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background
 .bars .yn{font-family:var(--mono);font-size:10px;fill:var(--muted)}
 .bars .yy{font-family:var(--mono);font-size:10px;fill:var(--muted)}
 .bars .ybase{stroke:var(--rule);stroke-width:1}
-.bars .ycursor{stroke:var(--ink);stroke-width:1;stroke-dasharray:3 3}
+.bars .ycursor{fill:var(--ink);opacity:.08}
 .bars .yhit{cursor:default}
 .bar{flex:1 0 26px;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end;min-width:26px}
 .bar .col{width:100%;display:flex;flex-direction:column-reverse;border-radius:3px 3px 0 0;overflow:hidden}
@@ -913,7 +913,6 @@ document.querySelectorAll('[data-pace]').forEach(b => b.onclick = () => {
   try { if (localStorage.getItem(KEY)) $('#notice').hidden = true; } catch {}
   $('#noticeClose').onclick = () => { $('#notice').hidden = true; try { localStorage.setItem(KEY, '1'); } catch {} };
 })();
-document.querySelectorAll('[data-yscale]').forEach(b => b.onclick = () => { S.settings.yearScale = b.dataset.yscale; renderStats(); scheduleSave(); });
 let resizeT; window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(renderStats, 150); });
 function renderAll() { trackReading(); setStore(); $('#spDefault').setAttribute('aria-pressed', S.settings.spineMode !== 'genre'); $('#spGenre').setAttribute('aria-pressed', S.settings.spineMode === 'genre'); renderStats(); renderShelf(); setTimeout(lookupGenres, 0); }
 
@@ -1057,65 +1056,56 @@ function renderStats() {
     parts.push(`<span style="color:var(--shame)">${v.unread} unread</span>`);
     return `<b>${y === 'all' ? 'All books counted' : y}</b>: ${t} book${t === 1 ? '' : 's'} · ${parts.join(' · ')}`;
   };
-  const soft = S.settings.yearScale !== 'true';
-  document.querySelectorAll('[data-yscale]').forEach(b => b.setAttribute('aria-pressed', (b.dataset.yscale === 'soft') === soft));
   const box = $('#years');
+  let capped = false;
   if (!keys.length) box.innerHTML = '<p class="muted" style="align-self:center">No purchase dates yet.</p>';
   else {
-    // Smooth stacked area. "Smoothed" uses a square-root height so one huge buying year doesn't flatten the rest; the numbers stay exact.
-    const W = Math.max(260, box.clientWidth || 320), H = 170, padL = 6, padR = 6, padT = 22, padB = 22;
+    // Stacked bars on a true scale, except unusually tall years: those are cut off (with a break mark and "↑")
+    // so one big buying year doesn't flatten the rest. Numbers above bars are always exact.
+    const W = Math.max(260, box.clientWidth || 320), H = 170, padL = 2, padR = 2, padT = 22, padB = 22;
     const tot = y => order.reduce((a, k) => a + yrs[y][k], 0);
-    const maxT = Math.max(1, ...keys.map(tot));
-    const f = v => soft ? Math.sqrt(v / maxT) : v / maxT;
-    const X = i => keys.length === 1 ? W / 2 : padL + i * (W - padL - padR) / (keys.length - 1);
-    const Y = v => padT + (1 - f(v)) * (H - padT - padB);
-    // Monotone cubic path through points (no overshoot below zero or above peaks)
-    const smooth = pts => {
-      if (pts.length < 2) return `M${pts[0][0]},${pts[0][1]}`;
-      const n = pts.length, dx = [], m = [], t = [];
-      for (let i = 0; i < n - 1; i++) { dx[i] = pts[i+1][0] - pts[i][0]; m[i] = (pts[i+1][1] - pts[i][1]) / dx[i]; }
-      t[0] = m[0]; t[n-1] = m[n-2];
-      for (let i = 1; i < n - 1; i++) t[i] = m[i-1] * m[i] <= 0 ? 0 : 3 * (dx[i-1] + dx[i]) / ((2*dx[i] + dx[i-1]) / m[i-1] + (dx[i] + 2*dx[i-1]) / m[i]);
-      let d = `M${pts[0][0]},${pts[0][1]}`;
-      for (let i = 0; i < n - 1; i++) d += ` C${pts[i][0] + dx[i]/3},${pts[i][1] + t[i]*dx[i]/3} ${pts[i+1][0] - dx[i]/3},${pts[i+1][1] - t[i+1]*dx[i]/3} ${pts[i+1][0]},${pts[i+1][1]}`;
-      return d;
-    };
-    const cum = keys.map(() => 0);
-    let layers = '';
-    for (const k of order) {
-      const lower = keys.map((y, i) => [X(i), Y(cum[i])]);
-      keys.forEach((y, i) => { cum[i] += yrs[y][k]; });
-      const upper = keys.map((y, i) => [X(i), Y(cum[i])]);
-      if (!keys.some(y => yrs[y][k])) continue;
-      const back = smooth([...lower].reverse()).replace(/^M/, 'L');
-      layers += `<path d="${smooth(upper)} ${back} Z" fill="${STATUS_COLOR[k]}" stroke="var(--paper)" stroke-width="1.5" stroke-linejoin="round"/>`;
-    }
-    const peak = keys.reduce((a, y) => tot(y) > tot(a) ? y : a, keys[0]);
+    const nz = keys.map(tot).filter(Boolean).sort((a, b) => a - b);
+    const maxT = Math.max(1, ...nz);
+    const cap = Math.min(maxT, Math.max(10, Math.ceil((nz[Math.min(nz.length - 1, Math.floor(nz.length * 0.75))] || 1) * 1.6)));
+    const slot = (W - padL - padR) / keys.length, bw = Math.max(4, Math.min(34, slot - 4));
+    const plotH = H - padT - padB, base = H - padB;
+    const Hof = v => Math.min(v, cap) / cap * plotH;
     const every = Math.ceil(keys.length / 12);
-    const labels = keys.map((y, i) => {
-      const n = tot(y), showN = n && (keys.length <= 16 || y === peak || i === keys.length - 1 || i % every === 0);
-      const showY = i % every === 0 || i === keys.length - 1;
-      return (showN ? `<text x="${X(i)}" y="${Y(n) - 6}" text-anchor="middle" class="yn">${n}</text>` : '') +
-        (showY ? `<text x="${X(i)}" y="${H - 6}" text-anchor="middle" class="yy">'${y.slice(2)}</text>` : '');
-    }).join('');
-    const colW = (W - padL - padR) / Math.max(1, keys.length - 1);
-    const hits = keys.map((y, i) => `<rect class="yhit" data-y="${y}" data-i="${i}" x="${X(i) - colW / 2}" y="0" width="${colW}" height="${H}" fill="transparent"/>`).join('');
+    let bars = '', labels = '', hits = '', prevCut = false, lift = 0;
+    keys.forEach((y, i) => {
+      const t = tot(y), cx = padL + slot * i + slot / 2, x = cx - bw / 2, cut = t > cap;
+      if (cut) capped = true;
+      if (!t) prevCut = false;
+      if (t) {
+        const h = Hof(t); let yb = base;
+        order.forEach(k => {
+          const n = yrs[y][k]; if (!n) return;
+          const sh = h * n / t; yb -= sh;
+          bars += `<rect x="${x}" y="${yb}" width="${bw}" height="${Math.max(sh - (yb > base - h + 0.5 ? 1 : 0), 0.5)}" fill="${STATUS_COLOR[k]}"/>`;
+        });
+        prevCut = cut;
+        if (cut) bars += `<path d="M${x - 2},${base - h + 14} l${bw + 4},-6 M${x - 2},${base - h + 21} l${bw + 4},-6" stroke="var(--paper)" stroke-width="3"/>`;
+        lift = cut && prevCut ? (lift ? 0 : 11) : 0; // neighbouring cut-off bars: stagger their labels so they don't collide
+        labels += `<text x="${cx}" y="${base - h - 6 - lift}" text-anchor="middle" class="yn">${t}${cut ? '↑' : ''}</text>`;
+      }
+      if (i % every === 0 || i === keys.length - 1) labels += `<text x="${cx}" y="${H - 6}" text-anchor="middle" class="yy">'${y.slice(2)}</text>`;
+      hits += `<rect class="yhit" data-y="${y}" data-i="${i}" x="${padL + slot * i}" y="0" width="${slot}" height="${H}" fill="transparent"/>`;
+    });
     box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="Books added per year, stacked by status">
-      <line x1="${padL}" x2="${W - padR}" y1="${H - padB}" y2="${H - padB}" class="ybase"/>${layers}
-      <line class="ycursor" x1="0" x2="0" y1="${padT - 8}" y2="${H - padB}" visibility="hidden"/>${labels}${hits}</svg>`;
-    box.dataset.w = W;
-    box._x = X;
+      <line x1="${padL}" x2="${W - padR}" y1="${base}" y2="${base}" class="ybase"/>${bars}
+      <rect class="ycursor" x="0" y="${padT - 6}" width="${slot}" height="${plotH + 6}" rx="4" visibility="hidden"/>${labels}${hits}</svg>`;
+    box._slot = slot; box._padL = padL;
   }
   const undated = bs.filter(b => !b.date).length;
   const baseInfo = yearText('all');
-  const undatedTxt = (undated ? ` <span class="muted">(${fmtInt(undated)} books have no purchase date)</span>` : '') + (soft && keys.length ? ' <span class="muted">Smoothed heights; numbers are exact.</span>' : '');
+  const undatedTxt = (undated ? ` <span class="muted">(${fmtInt(undated)} books have no purchase date)</span>` : '') + (capped ? ' <span class="muted">Years marked ↑ are cut off so the others stay readable; the numbers are exact.</span>' : '');
   const cursor = () => box.querySelector('.ycursor');
   $('#yearInfo').innerHTML = baseInfo + undatedTxt;
   box.onmouseleave = () => { $('#yearInfo').innerHTML = baseInfo + undatedTxt; const c = cursor(); if (c) c.setAttribute('visibility', 'hidden'); };
   box.onmousemove = box.onclick = e => {
     const r = e.target.closest && e.target.closest('.yhit'); if (!r) return;
     $('#yearInfo').innerHTML = yearText(r.dataset.y) + undatedTxt;
-    const c = cursor(); if (c) { const x = box._x(+r.dataset.i); c.setAttribute('x1', x); c.setAttribute('x2', x); c.setAttribute('visibility', 'visible'); }
+    const c = cursor(); if (c) { c.setAttribute('x', box._padL + box._slot * +r.dataset.i); c.setAttribute('visibility', 'visible'); }
   };
   $('#yearLegend').innerHTML = order.map(k => `<span><i style="background:${STATUS_COLOR[k]}"></i>${STATUS[k]}</span>`).join('');
 
@@ -1713,7 +1703,7 @@ async function lookupBookInfo() {
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '1.29';
+const LATEST_SCRIPT = '1.30';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 function checkScriptVersion(v) {
