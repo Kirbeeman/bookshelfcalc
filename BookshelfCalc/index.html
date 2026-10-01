@@ -6,7 +6,7 @@
 <title>Kindle Library Calculator</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,600;7..72,800&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,600;7..72,800&family=JetBrains+Mono:wght@400;600&family=Cormorant+Garamond:wght@600;700&display=swap">
 <style>
 /* Layout: e-paper ledger — summary strip, the pile itself as the centerpiece, breakdowns, then the full shelf table. */
 :root{
@@ -33,6 +33,50 @@
   --cloth-1:#8a4a4a; --cloth-2:#3d6278; --cloth-3:#77773c; --cloth-4:#524a70; --cloth-5:#946642; --cloth-6:#3e6853; --spine-ink:#f6f3ea; --wood:#6b4529; --wood-dark:#40291a; --wood-back:#231c17;
   --g-mystery:#41558a; --g-romance:#b8577a; --g-erotica:#a0609e; --g-scifi:#3a8aa6; --g-horror:#7a3040; --g-fiction:#93794c; --g-history:#95603a; --g-selfhelp:#4f8a63; --g-cooking:#a09033; --g-humor:#c97a35; --g-kids:#8670bd; --g-comics:#c45a3e; --g-nonfiction:#64757d; --g-unknown:#6f6c67;
   color-scheme:dark}
+
+/* ---------- themes (Settings → Theme). Default follows the device's light/dark setting. ---------- */
+/* Cozy: a candle-lit reading room. Warm dark wood, parchment text, amber light. */
+:root[data-theme="cozy"]{
+  --bg:#16100b; --paper:#211811; --ink:#f2e6cf; --muted:#b9a383; --rule:#3b2c1f;
+  --accent:#f0b25a; --accent-soft:#3b2915; --shame:#ec8a62; --shame-soft:#3e2116;
+  --ok:#b5cf8f; --warn:#f0b85c;
+  --cloth-1:#7d3a2c; --cloth-2:#3d5848; --cloth-3:#8b6a35; --cloth-4:#5b3b52; --cloth-5:#9b5a2c; --cloth-6:#4d3a28; --spine-ink:#f7e8c9; --wood:#6f4223; --wood-dark:#3c2211; --wood-back:#1b110a;
+  --g-mystery:#41558a; --g-romance:#b8577a; --g-erotica:#a0609e; --g-scifi:#3a8aa6; --g-horror:#7a3040; --g-fiction:#93794c; --g-history:#95603a; --g-selfhelp:#4f8a63; --g-cooking:#a09033; --g-humor:#c97a35; --g-kids:#8670bd; --g-comics:#c45a3e; --g-nonfiction:#64757d; --g-unknown:#6f6c67;
+  --display:"Cormorant Garamond", "Literata", Georgia, serif;
+  color-scheme:dark}
+:root[data-theme="cozy"] body{background:radial-gradient(ellipse 70% 55% at 50% -8%, rgba(255,176,84,.22), transparent 70%), radial-gradient(ellipse 50% 40% at 100% 100%, rgba(255,140,60,.07), transparent 70%), var(--bg);background-attachment:fixed}
+:root[data-theme="cozy"] h1{font-weight:700;font-size:2rem;letter-spacing:0}
+:root[data-theme="cozy"] .card,:root[data-theme="cozy"] .tiles{box-shadow:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,210,150,.05)}
+:root[data-theme="cozy"] .bookcase{box-shadow:0 0 60px rgba(255,160,70,.12), inset 0 18px 30px rgba(0,0,0,.45)}
+:root[data-theme="cozy"] .btn.primary{background:var(--accent);color:#1c1209;border-color:var(--accent)}
+:root[data-theme="cozy"] header.top{background:rgba(22,16,11,.92);backdrop-filter:blur(6px)}
+/* Zon: a clean, bright storefront look. White pages, a near-black header bar, yellow buttons, teal links. */
+:root[data-theme="zon"]{
+  --bg:#ffffff; --paper:#ffffff; --ink:#0f1111; --muted:#565959; --rule:#d5d9d9;
+  --accent:#007185; --accent-soft:#e6f2f4; --shame:#b12704; --shame-soft:#fbeae5;
+  --ok:#2d7d32; --warn:#c45500;
+  --wood:#9a6b45; --wood-dark:#6b4528; --wood-back:#efe7dc;
+  --display:Arial, "Helvetica Neue", Helvetica, sans-serif; --body:Arial, "Helvetica Neue", Helvetica, sans-serif;
+  color-scheme:light}
+:root[data-theme="zon"] body{background:#eaeded}
+:root[data-theme="zon"] header.top{background:#131921;color:#fff;border-bottom:0;box-shadow:0 0 0 100vmax #131921;clip-path:inset(0 -100vmax)}
+:root[data-theme="zon"] header.top .store{color:#ccc}
+:root[data-theme="zon"] header.top .btn{background:#fff;color:#0f1111;border-color:#fff}
+:root[data-theme="zon"] .btn{border-radius:8px;box-shadow:0 2px 5px rgba(213,217,217,.5)}
+:root[data-theme="zon"] .btn.primary,:root[data-theme="zon"] header.top .btn.primary{background:#ffd814;border-color:#fcd200;color:#0f1111;border-radius:20px}
+:root[data-theme="zon"] .card,:root[data-theme="zon"] .tiles{border-radius:8px}
+:root[data-theme="zon"] h1{font-weight:700}
+:root[data-theme="zon"] a{color:var(--accent)}
+/* Light: the default's light colors, whatever the device is set to */
+:root[data-theme="light"]{color-scheme:light}
+.themesect{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}.themesect h4{margin:0;font-size:.9rem}
+.themepick{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.themepick button{display:flex;flex-direction:column;gap:6px;align-items:flex-start;border:1px solid var(--rule);background:var(--paper);color:var(--ink);border-radius:8px;padding:8px;font:inherit;font-size:.82rem;font-weight:600;cursor:pointer;text-align:left}
+.themepick button[aria-checked="true"]{outline:2px solid var(--accent);outline-offset:1px}
+.themepick .sw{display:flex;width:100%;height:28px;border-radius:5px;overflow:hidden;border:1px solid rgba(128,128,128,.3)}
+.themepick .sw i{flex:1}
+.themepick small{font-weight:400;color:var(--muted);font-size:.72rem;line-height:1.25}
+@media (max-width:640px){.themepick{grid-template-columns:repeat(2,minmax(0,1fr))}}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;padding-inline:16px;padding-block:0 48px}
@@ -387,6 +431,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.78rem;re
 <dialog id="dlgSettings">
   <form class="dlg" id="setForm">
     <div class="dlg-head"><h2>Settings</h2><button type="button" class="x" id="setClose" aria-label="Close">×</button></div>
+    <div class="themesect"><h4>Theme</h4><div class="themepick" role="radiogroup" aria-label="Theme" id="themePick"></div></div>
     <div class="form">
       <label>Pages to assume when unknown<input type="number" id="sPages" min="1"></label>
       <label>Price to assume when unknown<input type="number" id="sPrice" min="0" step="0.01"></label>
@@ -636,7 +681,7 @@ document.querySelectorAll('[data-pace]').forEach(b => b.onclick = () => {
   $('#noticeClose').onclick = () => { $('#notice').hidden = true; try { localStorage.setItem(KEY, '1'); } catch {} };
 })();
 let resizeT; window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(renderStats, 150); });
-function renderAll() { trackReading(); setStore(); $('#spDefault').setAttribute('aria-pressed', S.settings.spineMode !== 'genre'); $('#spGenre').setAttribute('aria-pressed', S.settings.spineMode === 'genre'); renderStats(); renderShelf(); setTimeout(lookupGenres, 0); }
+function renderAll() { if (S.settings.theme && typeof applyTheme === 'function') applyTheme(S.settings.theme); trackReading(); setStore(); $('#spDefault').setAttribute('aria-pressed', S.settings.spineMode !== 'genre'); $('#spGenre').setAttribute('aria-pressed', S.settings.spineMode === 'genre'); renderStats(); renderShelf(); setTimeout(lookupGenres, 0); }
 
 function renderStats() {
   const bs = S.books.filter(counted);
@@ -985,13 +1030,28 @@ $('#btnSettings').onclick = () => {
   wipeArmed = false; $('#wipeConfirm').textContent = '';
   $('#dlgSettings').showModal();
 };
+// ---------- themes ----------
+const THEMES = [
+  ['default', 'Default', 'Follows your device', ['#eceeea', '#1a1e21', '#27408b', '#a3322a']],
+  ['cozy', 'Cozy', 'Candle-lit library', ['#16100b', '#211811', '#f0b25a', '#7d3a2c']],
+  ['zon', 'Zon', 'Bright storefront', ['#131921', '#ffffff', '#ffd814', '#007185']],
+  ['light', 'Light', 'Always light', ['#f7f8f5', '#eceeea', '#27408b', '#2f6b45']],
+];
+function applyTheme(t) {
+  if (!t || t === 'default') document.documentElement.removeAttribute('data-theme'); else document.documentElement.dataset.theme = t;
+  try { localStorage.setItem('klc-theme', t || 'default'); } catch {}
+  const p = document.getElementById('themePick'); if (p) p.querySelectorAll('button').forEach(b => b.setAttribute('aria-checked', b.dataset.t === (t || 'default')));
+}
+$('#themePick').innerHTML = THEMES.map(([k, n, d, sw]) => `<button type="button" role="radio" aria-checked="false" data-t="${k}"><span class="sw">${sw.map(c => `<i style="background:${c}"></i>`).join('')}</span>${n}<small>${d}</small></button>`).join('');
+try { applyTheme(localStorage.getItem('klc-theme') || 'default'); } catch {} // before the library loads, so there's no flash
+$('#themePick').addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (!b) return; S.settings.theme = b.dataset.t; applyTheme(b.dataset.t); scheduleSave(); });
 $('#setClose').onclick = () => $('#dlgSettings').close();
 $('#setForm').addEventListener('submit', e => {
   e.preventDefault();
   S.settings = {
     defPages: Math.max(1, +$('#sPages').value || DEFAULTS.defPages), defPrice: Math.max(0, +$('#sPrice').value || 0),
     minPerPage: Math.max(0.2, +$('#sMin').value || DEFAULTS.minPerPage), pagesPerDay: Math.max(1, +$('#sDay').value || DEFAULTS.pagesPerDay), paceSet: true,
-    currency: $('#sCur').value, spineMode: S.settings.spineMode, doneAt: Math.min(100, Math.max(50, +$('#sDone').value || 90)),
+    currency: $('#sCur').value, spineMode: S.settings.spineMode, theme: S.settings.theme, doneAt: Math.min(100, Math.max(50, +$('#sDone').value || 90)),
     borrowed: $('#sBorrowed').checked, samples: $('#sSamples').checked, grAll: $('#sGrAll').checked,
   };
   $('#dlgSettings').close(); renderAll(); scheduleSave(); toast('Settings saved');
@@ -1447,7 +1507,7 @@ async function lookupBookInfo() {
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '1.38';
+const LATEST_SCRIPT = '1.39';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 let scriptVer = '';
@@ -1461,6 +1521,7 @@ const lsSet1 = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.r
 
 // ---------- what's new (shown in Settings) ----------
 const CHANGES = [
+  ['1.39', ['Themes in Settings: Default, Cozy (candle-lit library), Zon (bright storefront) and Light']],
   ['1.38', ['"Time to read it all" leads with what\'s left, with a small table: whole library, still to read, and your pace']],
   ['1.37', ['Genres are Amazon\'s own now (Romance, Science Fiction & Fantasy…), with the sub-genre when you point at a spine', 'Fixed: paranormal romance was being counted as Horror', 'Your library gets one more look at each book page to pick these up']],
   ['1.36', ['The Sync box folds to a single line with an arrow; it folds itself when a sync finishes cleanly']],
