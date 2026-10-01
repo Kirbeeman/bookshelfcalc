@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.18
+// @version      1.19
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -16,6 +16,7 @@
 // @grant        GM_setValue
 // @grant        GM_addStyle
 // @grant        GM_xmlhttpRequest
+// @grant        GM_info
 // @connect      goodreads.com
 // @connect      googleapis.com
 // @connect      amazon.com
@@ -250,7 +251,7 @@ if (onSite) {
   window.addEventListener('message', async e => {
     const d = e.data;
     if (!d || d.klc !== 1 || (e.origin && e.origin !== location.origin)) return;
-    if (d.type === 'hello') post({type: 'ready'});
+    if (d.type === 'hello') post({type: 'ready', version: GM_info.script.version});
     else if (d.type === 'kprice') {
       const data = await KLC_CORE.kindlePrices((d.asins || []).slice(0, 20));
       post({type: 'kpriceResult', id: d.id, data: JSON.stringify(data)});
@@ -260,7 +261,7 @@ if (onSite) {
       post({type: 'result', data: JSON.stringify(data)});
     }
   });
-  post({type: 'ready'});
+  post({type: 'ready', version: GM_info.script.version});
   return;
 }
 
@@ -1505,7 +1506,7 @@ function enableSync() {
 window.addEventListener('message', e => {
   const d = e.data;
   if (!d || d.klc !== 1 || (e.origin && e.origin !== location.origin && location.origin !== 'null')) return;
-  if (d.type === 'ready') enableSync();
+  if (d.type === 'ready') { enableSync(); checkScriptVersion(d.version); }
   else if (d.type === 'progress') setSync(d.msg);
   else if (d.type === 'kpriceResult' && kpWaiters[d.id]) { const w = kpWaiters[d.id]; delete kpWaiters[d.id]; try { w(JSON.parse(d.data)); } catch { w(null); } }
   else if (d.type === 'result' && bridgeWaiters) { const w = bridgeWaiters; bridgeWaiters = null; try { w.resolve(JSON.parse(d.data)); } catch (err) { w.reject(err); } }
@@ -1613,6 +1614,18 @@ async function lookupKindlePrices() {
     }
     setSync(`${lastSyncMsg}${found ? ` · ${found} Kindle prices today` : ''}`, 'db');
   } finally { kpRunning = false; }
+}
+
+// ---------- tell people when their sync script is behind the site ----------
+const LATEST_SCRIPT = '1.19';
+const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
+const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
+function checkScriptVersion(v) {
+  if (!v || !verLess(v, LATEST_SCRIPT) || $('#updateNote')) return;
+  const n = document.createElement('div');
+  n.className = 'notice'; n.id = 'updateNote'; n.setAttribute('role', 'status');
+  n.innerHTML = `<p><strong>A newer sync script is available.</strong> You have version ${esc(v)}; the latest is ${LATEST_SCRIPT}. <a href="${SCRIPT_URL}" target="_blank" rel="noopener">Update it now</a> (Tampermonkey opens and asks you to confirm), then reload this page.</p>`;
+  const top = document.querySelector('header.top'); top.after(n);
 }
 
 // ---------- export ----------

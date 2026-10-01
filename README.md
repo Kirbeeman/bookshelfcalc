@@ -75,7 +75,11 @@ You can also copy the file's contents, open the Tampermonkey dashboard, click th
 
 ### Updating
 
-Tampermonkey updates the script by itself. It checks this GitHub repo about once a day and installs a new version whenever the `@version` number at the top of the script goes up. To update right away, open the Tampermonkey dashboard and click **Check for userscript updates** in the Utilities tab (or the menu). Your books and settings are kept.
+Tampermonkey updates the script by itself: it checks this GitHub repo on a schedule (once a day by default) and installs a new version whenever the `@version` number goes up. Your books and settings are kept.
+
+- **Right away:** click the Tampermonkey icon → **Check for userscript updates**.
+- **More often:** Tampermonkey **Dashboard → Settings**, set **Config mode** to **Advanced**, then under **Script Update** change **Check Interval** (for example to every hour).
+- **The site tells you:** from version 1.19 on, if your script is older than the site expects, a note at the top of bookshelf.kirbee213.tv says so, with an **Update it now** link.
 
 ---
 
