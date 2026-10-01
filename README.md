@@ -99,6 +99,8 @@ Tampermonkey updates the script by itself: it checks this GitHub repo on a sched
 - **Today's Kindle price**, for books without a known price paid (shared, Kindle Unlimited, Prime, or bought but not yet read from its order). Kindle Unlimited books use the "to buy" price, not $0.00. These prices are rechecked once a month. In the library table they show as **now $5.99** to set them apart from what you actually paid, and library value uses: price paid → today's Kindle price → the guess from Settings. The spreadsheet export has a **Kindle price today** column.
 
 Anything you set by hand is never overwritten. If Amazon asks the script to slow down, it stops and continues on your next visit.
+
+> **Large libraries take a while the first time.** Each book's Amazon page is read one at a time, about a second per book, so the first scan of a 600-book library takes roughly 10 minutes, and a 2,000-book library around half an hour. The status line shows progress and an estimate, genre-colored spines start gray and fill in as it goes, and you can keep using the page. If you close it partway, the scan continues where it left off on your next visit. After the first pass, only new books are read (plus a monthly price check for books without a price paid), so later visits are quick.
 5. It **matches the two** (see the next section) and updates the numbers, charts and Shelf of Shame.
 6. Everything is saved in your browser for next time.
 
@@ -271,6 +273,7 @@ Click **Start empty** or import something. The example books are never saved.
 - The Kindle sync uses the same unofficial library list that Amazon's own Kindle website uses. Amazon can change it without notice. If it breaks, the Goodreads sync and the file imports still work.
 - Kindle reading progress isn't available from Amazon's library list.
 - Page counts and prices are estimates unless Goodreads, an Amazon orders file, or you provide them.
+- The first genre, page count and price scan reads about one book a second, so big libraries take a while the first time (roughly 10 minutes per 600 books). It resumes where it left off if interrupted.
 - Book covers aren't shown.
 - The sync script works in desktop browsers only. On phones, use file import.
 

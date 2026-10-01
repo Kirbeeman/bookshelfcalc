@@ -1307,7 +1307,10 @@ async function lookupBookInfo() {
   try {
     for (let i = 0; i < todo.length; i += 8) {
       const batch = todo.slice(i, i + 8);
-      setSync(`${lastSyncMsg} · Reading book details from Amazon (genre, pages, price)… ${done} of ${todo.length}`);
+      const mins = Math.ceil((todo.length - done) * 0.95 / 60);
+      const eta = mins > 1 ? `about ${mins} minutes left` : 'almost done';
+      setSync(`${lastSyncMsg} · Reading book details from Amazon (genre, pages, price)… ${done} of ${todo.length}, ${eta}`);
+      if (S.settings.spineMode === 'genre') genreStatus(`Still reading genres from Amazon: ${done} of ${todo.length} books, ${eta}. Big libraries take a while the first time (about a second per book). Gray spines fill in as it goes, you can keep using the page, and if you leave it picks up where it stopped next visit.`);
       const res = await infoFetch(batch.map(b => b.asin));
       if (!res) break;
       for (const b of batch) {
@@ -1321,12 +1324,13 @@ async function lookupBookInfo() {
       renderStats(); renderShelf(); scheduleSave();
       if (res.blocked) { setSync(`${lastSyncMsg} · Amazon paused lookups after ${done}; the rest continue next visit`, 'local'); return; }
     }
+    genreStatus('');
     setSync(`${lastSyncMsg}${done ? ` · details for ${done} books` : ''}`, 'db');
   } finally { kpRunning = false; }
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '1.23';
+const LATEST_SCRIPT = '1.24';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 function checkScriptVersion(v) {
