@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.30
+// @version      1.31
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -370,7 +370,7 @@ document.body.innerHTML = `<div class="wrap">
 
   <section class="grid3">
     <div class="card"><h3>By status</h3><div class="statlist" id="statusList"></div></div>
-    <div class="card"><h3>Books added per year</h3><div class="bars" id="years"></div><div class="yearinfo" id="yearInfo"></div><div class="legend" id="yearLegend"></div></div>
+    <div class="card"><h3>Books added per year</h3><div class="bars" id="years"></div><div class="rings" id="yearRings" aria-live="polite"></div><div class="yearinfo" id="yearInfo"></div><div class="legend" id="yearLegend"></div></div>
     <div class="card"><h3>Most-owned authors</h3><div class="authors" id="authors"></div></div>
   </section>
 
@@ -623,6 +623,18 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background
 .bar .col i{display:flex;align-items:center;justify-content:center;width:100%;font-family:var(--mono);font-style:normal;font-size:.62rem;font-weight:600;color:var(--bg);overflow:hidden;line-height:1}
 .bar{cursor:default}
 .bar:hover .col,.bar:focus .col{outline:2px solid var(--ink);outline-offset:1px}
+.rings{margin-top:14px;border-top:1px solid var(--rule);padding-top:12px}
+.rings .rhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px}
+.rings .rhead span{font-family:var(--mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.rings .rhead b{font-variant-numeric:tabular-nums;font-size:.9rem}
+.rings .rrow{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center}
+.rings svg{width:100%;max-width:76px;display:block;margin:0 auto 4px}
+.rings .rt{fill:none;stroke-width:7;opacity:.18}
+.rings .rv{fill:none;stroke-width:7;stroke-linecap:round;transition:stroke-dasharray .35s ease}
+.rings .rp{font-family:var(--mono);font-size:15px;fill:var(--ink);text-anchor:middle;dominant-baseline:central}
+.rings .rl{font-size:.8rem;line-height:1.25}
+.rings .rn{font-size:.76rem;font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:reduce){.rings .rv{transition:none}}
 .yearinfo{font-size:.84rem;min-height:1.3em;font-variant-numeric:tabular-nums}
 .yearinfo b{font-family:var(--mono)}
 .bar .n{font-family:var(--mono);font-size:.68rem;color:var(--muted)}
@@ -1100,11 +1112,30 @@ function renderStats() {
   const baseInfo = yearText('all');
   const undatedTxt = (undated ? ` <span class="muted">(${fmtInt(undated)} books have no purchase date)</span>` : '') + (capped ? ' <span class="muted">Years marked ↑ are cut off so the others stay readable; the numbers are exact.</span>' : '');
   const cursor = () => box.querySelector('.ycursor');
-  $('#yearInfo').innerHTML = baseInfo + undatedTxt;
-  box.onmouseleave = () => { $('#yearInfo').innerHTML = baseInfo + undatedTxt; const c = cursor(); if (c) c.setAttribute('visibility', 'hidden'); };
+  // Reading status rings: every year until you point at one, then just that year
+  const RC = 2 * Math.PI * 26;
+  const rk = ['finished','reading','abandoned','unread'];
+  $('#yearRings').innerHTML = `<div class="rhead"><span id="ringsTitle"></span><b id="ringsTotal"></b></div><div class="rrow">` + rk.map(k =>
+    `<div><svg viewBox="0 0 64 64" role="img" aria-label="${STATUS[k]}"><circle class="rt" cx="32" cy="32" r="26" stroke="${STATUS_COLOR[k]}"/><circle class="rv" id="rv-${k}" cx="32" cy="32" r="26" stroke="${STATUS_COLOR[k]}" transform="rotate(-90 32 32)" stroke-dasharray="0 ${RC}"/><text class="rp" id="rp-${k}" x="32" y="32">0%</text></svg>` +
+    `<div class="rl" style="color:${STATUS_COLOR[k]}">${STATUS[k]}</div><div class="rn muted" id="rn-${k}"></div></div>`).join('') + `</div>`;
+  const setRings = y => {
+    const v = y === 'all' ? allV : yrs[y], t = rk.reduce((a, k) => a + v[k], 0);
+    $('#ringsTitle').textContent = y === 'all' ? 'Reading status · all years' : `Reading status · ${y}`;
+    $('#ringsTotal').textContent = `${fmtInt(t)} book${t === 1 ? '' : 's'}`;
+    rk.forEach(k => {
+      const p = t ? v[k] / t : 0, pct = Math.round(p * 100);
+      $('#rv-' + k).setAttribute('stroke-dasharray', `${v[k] && p * RC < 0.5 ? 0.5 : p * RC} ${RC}`);
+      $('#rv-' + k).style.opacity = v[k] ? 1 : 0;
+      $('#rp-' + k).textContent = (v[k] && !pct ? '<1' : pct) + '%';
+      $('#rn-' + k).textContent = `${fmtInt(v[k])} book${v[k] === 1 ? '' : 's'}`;
+    });
+  };
+  setRings('all');
+  $('#yearInfo').innerHTML = undatedTxt;
+  box.onmouseleave = () => { setRings('all'); $('#yearInfo').innerHTML = undatedTxt; const c = cursor(); if (c) c.setAttribute('visibility', 'hidden'); };
   box.onmousemove = box.onclick = e => {
     const r = e.target.closest && e.target.closest('.yhit'); if (!r) return;
-    $('#yearInfo').innerHTML = yearText(r.dataset.y) + undatedTxt;
+    $('#yearInfo').innerHTML = undatedTxt; setRings(r.dataset.y);
     const c = cursor(); if (c) { c.setAttribute('x', box._padL + box._slot * +r.dataset.i); c.setAttribute('visibility', 'visible'); }
   };
   $('#yearLegend').innerHTML = order.map(k => `<span><i style="background:${STATUS_COLOR[k]}"></i>${STATUS[k]}</span>`).join('');
@@ -1703,7 +1734,7 @@ async function lookupBookInfo() {
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '1.30';
+const LATEST_SCRIPT = '1.31';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 function checkScriptVersion(v) {
