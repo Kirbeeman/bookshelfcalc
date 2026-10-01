@@ -40,7 +40,9 @@ Your books are stored only in your own browser. Nothing is sent to a server, and
 | **Breakdowns** | Books by status, books added per year, and your most-owned authors with how many of theirs are unread. |
 | **Your library** | A searchable, sortable table of every book. Change a status right in the table, or click a title to edit it. |
 
-Statuses are **Unread**, **Reading**, **Finished** and **Gave up**. Only **Unread** books go on the Shelf of Shame.
+Statuses are **Unread**, **Reading**, **Finished** and **DNF** (Did Not Finish). Only **Unread** books go on the Shelf of Shame.
+
+**Stalled books.** A book marked **Reading** for more than a year gets a red **stalled 1 yr+** tag, a **Stalled 1 yr+** button under Your library, and a link in the Shelf of Shame stats ("2 stalled for over a year, sort them"). Decide each one: mark it **Finished**, or **DNF** if you've given up on it. The clock starts when you set a book to Reading; books that were already Reading count from their purchase date.
 
 Books bought in the **last 5 days** are outlined in gold and placed first on the Shelf of Shame, with a *new* tag in the library table. With the sync script, purchase dates come straight from Amazon. Without it, dates come from the Kindle for PC app file or an Amazon orders file, and a Kindle book that first shows up after your first import is dated the day it appeared. To mark a book as just bought yourself, click its title and set **Added on** to the purchase date.
 
