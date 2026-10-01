@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.12
+// @version      1.13
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -197,8 +197,8 @@ const KLC_CORE = {
     }
     out.kindle = k;
     let o = null; try { o = JSON.parse(GM_getValue('owned', 'null')); } catch {}
-    if (force || !o || Date.now() - o.time > 24 * 3600e3) {
-      try { progress('Reading purchase dates…'); o = {time: Date.now(), items: await fetchOwnership(progress)}; GM_setValue('owned', JSON.stringify(o)); }
+    if (force || !o || o.v !== 2 || Date.now() - o.time > 24 * 3600e3) {  // v2 = includes order links for prices
+      try { progress('Reading purchase dates…'); o = {v: 2, time: Date.now(), items: await fetchOwnership(progress)}; GM_setValue('owned', JSON.stringify(o)); }
       catch (e) { out.oErr = e.message || String(e); }
     }
     out.owned = o;
