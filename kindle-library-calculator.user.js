@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.37
+// @version      1.38
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -348,7 +348,7 @@ document.body.innerHTML = `<div class="wrap">
   <section class="tiles" aria-label="Library summary">
     <div class="tile"><h3>Books</h3><div class="big" id="tBooks">0</div><div class="sub" id="tBooksSub"></div></div>
     <div class="tile"><h3>Library value</h3><button type="button" class="reveal" id="revealValue" aria-pressed="false"><span class="big" id="tValue">$0</span><span class="sub" id="tValueSub"></span><span class="hint" id="revealHint">Click to reveal</span></button></div>
-    <div class="tile"><h3>Time to read it all</h3><div class="big" id="tHours">0 h</div><div class="sub" id="tHoursSub"></div></div>
+    <div class="tile time"><h3>Time to read it all</h3><div class="big" id="tHours">0 h</div><div class="sub" id="tHoursSub"></div></div>
     <div class="tile shame"><h3>Unread</h3><div class="big" id="tUnread">0%</div><div class="sub" id="tUnreadSub"></div></div>
   </section>
 
@@ -556,6 +556,12 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background
 .tip:hover .tipbox,.tip:focus .tipbox,.tip:focus-within .tipbox{opacity:1;visibility:visible}
 .tile{background:var(--paper);padding:16px 18px;display:flex;flex-direction:column;gap:4px;min-width:0}
 .tile .big{font-family:var(--mono);font-size:1.75rem;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1;overflow-wrap:anywhere}
+.tile .unitw{font-size:.55em;font-weight:500;color:var(--muted);font-family:var(--body)}
+.trows{display:grid;grid-template-columns:auto 1fr auto;gap:5px 14px;margin-top:8px;align-items:baseline;font-size:.84rem}
+.trows .tk{white-space:nowrap}.trows .tn,.trows .th{font-family:var(--mono);white-space:nowrap;text-align:right}.trows .th{font-weight:600}
+.trows .hl{color:var(--ink)}
+/* the time tile is wider so its little table fits */
+.tiles{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.7fr) minmax(0,1fr)}
 .tile .sub{font-size:.82rem;color:var(--muted)}
 .tile.shame .big{color:var(--shame)}
 .reveal{all:unset;cursor:pointer;display:flex;flex-direction:column;gap:4px;border-radius:4px}
@@ -709,7 +715,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.78rem;re
 #toast.show{opacity:1}
 
 @media (max-width:900px){.grid3{grid-template-columns:1fr}.pile{grid-template-columns:1fr}}
-@media (max-width:640px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.tile:first-child{border-radius:9px 0 0 0}.tile:nth-child(2){border-radius:0 9px 0 0}.tile:nth-child(3){border-radius:0 0 0 9px}.tile:last-child{border-radius:0 0 9px 0}.tile .big{font-size:1.35rem}h1{font-size:1.35rem}.form{grid-template-columns:1fr}.facts{grid-template-columns:1fr 1fr}}
+@media (max-width:640px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.tile.shame{grid-column:1/-1;order:3;border-radius:0!important}.tile.time{grid-column:1/-1;order:4;border-radius:0 0 9px 9px!important}.tile:first-child{border-radius:9px 0 0 0}.tile:nth-child(2){border-radius:0 9px 0 0}.tile:nth-child(3){border-radius:0 0 0 9px}.tile:last-child{border-radius:0 0 9px 0}.tile .big{font-size:1.35rem}h1{font-size:1.35rem}.form{grid-template-columns:1fr}.facts{grid-template-columns:1fr 1fr}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 `);
 
@@ -977,9 +983,13 @@ function renderStats() {
   $('#tValueSub').innerHTML = !S.showMoney ? 'Hidden' : `<span class="tip" tabindex="0">${[vg.paid[0] ? `${fmtInt(vg.paid[0])} paid` : '', vg.now[0] ? `${fmtInt(vg.now[0])} at today's price` : '', vg.guess[0] ? `${fmtInt(vg.guess[0])} guessed` : '', vg.zero[0] ? `${fmtInt(vg.zero[0])} free` : ''].filter(Boolean).join(' · ') || 'no books yet'}${vtip}</span>`;
   $('#revealHint').textContent = S.showMoney ? 'Click to hide' : 'Click to reveal';
   $('#revealValue').setAttribute('aria-pressed', S.showMoney);
-  $('#tHours').textContent = fmtHours(hoursFor(allPages));
+  // Lead with what's still to read; a small labeled table shows the whole library and your pace. Units spelled out.
+  const hrsWord = p => { const h = hoursFor(p); if (h < 1) { const m = Math.round(h * 60); return `${m} minute${m === 1 ? '' : 's'}`; } const r = Math.round(h); return `${fmtInt(r)} hour${r === 1 ? '' : 's'}`; };
   const paceDays = leftPages / Math.max(1, S.settings.pagesPerDay);
-  $('#tHoursSub').textContent = `${fmtInt(allPages)} pages · ${fmtHours(hoursFor(leftPages))} left · ${paceDays > 730 ? (paceDays / 365).toFixed(1) + ' years' : fmtInt(paceDays) + ' days'} at your pace`;
+  const paceTxt = paceDays > 730 ? `${(paceDays / 365).toFixed(1)} years` : paceDays >= 1.5 ? `${fmtInt(paceDays)} days` : paceDays > 0 ? 'about a day' : 'nothing left';
+  $('#tHours').innerHTML = `${hrsWord(leftPages)} <span class="unitw">left</span>`;
+  const trow = (label, mid, right, hl) => `<span class="tk${hl ? ' hl' : ''}">${label}</span><span class="tn${hl ? ' hl' : ''}">${mid}</span><span class="th${hl ? ' hl' : ''}">${right}</span>`;
+  $('#tHoursSub').innerHTML = `<span class="trows">${trow('Whole library', `${fmtInt(allPages)} pages`, hrsWord(allPages))}${trow('Still to read', `${fmtInt(Math.round(leftPages))} pages`, hrsWord(leftPages), true)}${trow('At your pace', `${fmtInt(S.settings.pagesPerDay)} pages/day`, paceTxt)}</span>`;
   const pk = Object.keys(PACES).find(k => PACES[k] === S.settings.pagesPerDay);
   document.querySelectorAll('[data-pace]').forEach(b => b.setAttribute('aria-pressed', b.dataset.pace === pk));
   $('#paceNote').textContent = `${S.settings.pagesPerDay} pages a day` + (pk ? '' : ' (custom, set in Settings)');
@@ -1749,7 +1759,7 @@ async function lookupBookInfo() {
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '1.37';
+const LATEST_SCRIPT = '1.38';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 let scriptVer = '';
@@ -1763,6 +1773,7 @@ const lsSet1 = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.r
 
 // ---------- what's new (shown in Settings) ----------
 const CHANGES = [
+  ['1.38', ['"Time to read it all" leads with what\'s left, with a small table: whole library, still to read, and your pace']],
   ['1.37', ['Genres are Amazon\'s own now (Romance, Science Fiction & Fantasy…), with the sub-genre when you point at a spine', 'Fixed: paranormal romance was being counted as Horror', 'Your library gets one more look at each book page to pick these up']],
   ['1.36', ['The Sync box folds to a single line with an arrow; it folds itself when a sync finishes cleanly']],
   ['1.35', ['Prices paid fill in about 4 times faster: up to 150 orders per sync, paced so Amazon doesn\'t object', 'Library value shows where every dollar comes from (hover the line under it)']],
