@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.25
+// @version      1.26
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -1534,7 +1534,15 @@ window.addEventListener('message', e => {
 });
 function startSync() {
   if (hasCore) enableSync();
-  else postBridge({type: 'hello'});
+  else {
+    postBridge({type: 'hello'});
+    // No answer from the script: say so, with the most common fix, instead of silently showing guesses
+    setTimeout(() => {
+      if (syncOn || location.protocol === 'file:') return;
+      const el = $('#sync'); el.hidden = false; el.className = 'store local';
+      el.querySelector('span').innerHTML = 'Sync script not detected, so prices, pages and genres are guesses. Installed Tampermonkey? Turn on <b>Allow User Scripts</b> for it (browser extensions page → Tampermonkey → Details), then reload. <a href="https://github.com/Kirbeeman/bookshelfcalc#automatic-sync-install-the-script" target="_blank" rel="noopener" style="color:inherit">Setup help</a>';
+    }, 4000);
+  }
 }
 function bridgeSync(force, paid) {
   return new Promise((resolve, reject) => {
@@ -1651,7 +1659,7 @@ async function lookupBookInfo() {
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '1.25';
+const LATEST_SCRIPT = '1.26';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 function checkScriptVersion(v) {
