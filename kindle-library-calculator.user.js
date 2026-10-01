@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.16
+// @version      1.17
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -349,6 +349,7 @@ document.body.innerHTML = `<div class="wrap">
         <div class="meter" id="meter" aria-hidden="true"></div>
         <div class="legend" id="meterLegend" style="margin-top:8px"></div>
       </div>
+      <div class="shelfbar" style="justify-content:flex-start"><span class="seglabel">Reading pace <span class="seg" role="group" aria-label="Reading pace"><button type="button" data-pace="slow" aria-pressed="false">Slow</button><button type="button" data-pace="average" aria-pressed="true">Average</button><button type="button" data-pace="fast" aria-pressed="false">Fast</button></span></span><span class="seglabel" id="paceNote"></span></div>
       <div class="facts">
         <div class="fact"><button type="button" class="reveal" data-reveal><span class="v" id="fValue">$0</span></button><span class="l">spent on books you haven't opened</span></div>
         <div class="fact"><span class="v" id="fHours">0 h</span><span class="l">of reading sitting on the shelf</span></div>
@@ -706,7 +707,10 @@ const DEMO = [
   DEMO.forEach(b => { b.genre = G[b.title]; b.genreSrc = 'manual'; }); }
 { const daysAgo = n => new Date(Date.now() - n * 864e5).toISOString().slice(0,10); DEMO[17].date = daysAgo(3); DEMO[18].date = daysAgo(1); }
 
-const DEFAULTS = {defPages:320, defPrice:7.99, minPerPage:1.1, pagesPerDay:30, currency:'USD', doneAt:90, borrowed:false, samples:false, grAll:false};
+// Earlier versions defaulted to 30 pages a day; move untouched settings to the new Average pace
+const migrateSettings = s => (s.pagesPerDay === 30 && !s.paceSet ? {...s, pagesPerDay: 55} : s);
+const PACES = {slow: 35, average: 55, fast: 90};
+const DEFAULTS = {defPages:320, defPrice:7.99, minPerPage:1.1, pagesPerDay:55, currency:'USD', doneAt:90, borrowed:false, samples:false, grAll:false};
 const S = {showMoney:false, books: DEMO.map(b => ({...b})), settings:{...DEFAULTS}, demo:true, mode:'demo', filter:'all', q:'', sort:{k:'date', dir:-1}, limit:150};
 
 // ---------- persistence ----------
@@ -726,7 +730,7 @@ async function initStore() {
         col = db.collection('data/users/' + id);
         const snap = await col.get();
         const docs = {}; snap.docs.forEach(d => docs[d.id] = d.data());
-        if (docs.meta?.settings) S.settings = {...DEFAULTS, ...docs.meta.settings};
+        if (docs.meta?.settings) S.settings = migrateSettings({...DEFAULTS, ...docs.meta.settings});
         savedMeta = JSON.stringify(docs.meta || {});
         const chunks = Object.keys(docs).filter(k => /^c\d+$/.test(k)).sort((a,b) => +a.slice(1) - +b.slice(1));
         const books = [];
@@ -739,7 +743,7 @@ async function initStore() {
   } catch (e) { console.warn('db unavailable', e); db = null; col = null; }
   const local = lsGet();
   S.mode = 'local';
-  if (local) { S.books = local.books || []; S.settings = {...DEFAULTS, ...(local.settings || {})}; S.demo = false; }
+  if (local) { S.books = local.books || []; S.settings = migrateSettings({...DEFAULTS, ...(local.settings || {})}); S.demo = false; }
   renderAll();
 }
 
@@ -887,6 +891,10 @@ function setSpineMode(m) {
 $('#spDefault').onclick = () => setSpineMode('default');
 $('#spGenre').onclick = () => setSpineMode('genre');
 
+document.querySelectorAll('[data-pace]').forEach(b => b.onclick = () => {
+  S.settings.pagesPerDay = PACES[b.dataset.pace]; S.settings.paceSet = true;
+  renderStats(); scheduleSave();
+});
 function renderAll() { setStore(); $('#spDefault').setAttribute('aria-pressed', S.settings.spineMode !== 'genre'); $('#spGenre').setAttribute('aria-pressed', S.settings.spineMode === 'genre'); renderStats(); renderShelf(); setTimeout(lookupGenres, 0); }
 
 function renderStats() {
@@ -915,7 +923,11 @@ function renderStats() {
   $('#revealHint').textContent = S.showMoney ? 'Click to hide' : 'Click to reveal';
   $('#revealValue').setAttribute('aria-pressed', S.showMoney);
   $('#tHours').textContent = fmtHours(hoursFor(allPages));
-  $('#tHoursSub').textContent = `${fmtInt(allPages)} pages · ${fmtHours(hoursFor(leftPages))} left`;
+  const paceDays = leftPages / Math.max(1, S.settings.pagesPerDay);
+  $('#tHoursSub').textContent = `${fmtInt(allPages)} pages · ${fmtHours(hoursFor(leftPages))} left · ${paceDays > 730 ? (paceDays / 365).toFixed(1) + ' years' : fmtInt(paceDays) + ' days'} at your pace`;
+  const pk = Object.keys(PACES).find(k => PACES[k] === S.settings.pagesPerDay);
+  document.querySelectorAll('[data-pace]').forEach(b => b.setAttribute('aria-pressed', b.dataset.pace === pk));
+  $('#paceNote').textContent = `${S.settings.pagesPerDay} pages a day` + (pk ? '' : ' (custom, set in Settings)');
   $('#tUnread').textContent = Math.round(pct) + '%';
   $('#tUnreadSub').textContent = `${fmtInt(pile.length)} of ${fmtInt(n)} books never opened`;
 
@@ -1147,7 +1159,7 @@ $('#setForm').addEventListener('submit', e => {
   e.preventDefault();
   S.settings = {
     defPages: Math.max(1, +$('#sPages').value || DEFAULTS.defPages), defPrice: Math.max(0, +$('#sPrice').value || 0),
-    minPerPage: Math.max(0.2, +$('#sMin').value || DEFAULTS.minPerPage), pagesPerDay: Math.max(1, +$('#sDay').value || DEFAULTS.pagesPerDay),
+    minPerPage: Math.max(0.2, +$('#sMin').value || DEFAULTS.minPerPage), pagesPerDay: Math.max(1, +$('#sDay').value || DEFAULTS.pagesPerDay), paceSet: true,
     currency: $('#sCur').value, spineMode: S.settings.spineMode, doneAt: Math.min(100, Math.max(50, +$('#sDone').value || 90)),
     borrowed: $('#sBorrowed').checked, samples: $('#sSamples').checked, grAll: $('#sGrAll').checked,
   };

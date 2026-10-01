@@ -188,7 +188,7 @@ Click **Settings** to change:
 | Pages to assume when unknown | 320 | Kindle doesn't report page counts. Used until Goodreads or you supply one. |
 | Price to assume when unknown | $7.99 | Used for library value when a purchase price is missing. Shown as `~$7.99` in the table. |
 | Minutes per page | 1.1 | Drives every reading-time estimate. About 1 minute per page is typical for adult fiction. |
-| Pages you read per day | 30 | Used to work out when you'd clear the shelf. |
+| Pages you read per day | 55 | Used to work out when you'd clear the shelf. The **Reading pace** buttons next to the shame stats set it in one click: **Slow** 35, **Average** 55, **Fast** 90 pages a day. Any other number entered here counts as a custom pace. |
 | Currency | USD | How money is displayed. |
 | Finished when progress reaches % | 90 | Kindle books rarely hit 100% because of back matter. |
 | Count Kindle Unlimited, Prime, borrowed and family-shared books | Off | Books you didn't buy are left out of totals by default. With the sync script, Amazon says how each book was obtained, so books shared with you through Amazon Family Library are marked **shared** automatically. Change a book's **How you got it** by hand and the sync leaves it alone. |
