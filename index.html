@@ -417,6 +417,13 @@ const DEMO = [
 
 // Earlier versions defaulted to 30 pages a day; move untouched settings to the new Average pace
 const migrateSettings = s => (s.pagesPerDay === 30 && !s.paceSet ? {...s, pagesPerDay: 55} : s);
+// The finish-date line ends with one of these, taking turns on each visit
+const QUIPS = [', or until your next 1-Click purchase', ", assuming the next Kindle Daily Deal doesn't find you", ', give or take your next impulse buy', '… for now. We both know how this goes.'];
+const QUIP = (() => {
+  let i = Math.floor(Math.random() * QUIPS.length);
+  try { const last = +localStorage.getItem('kindle-calc-quip'); if (!isNaN(last) && localStorage.getItem('kindle-calc-quip') !== null) i = (last + 1) % QUIPS.length; localStorage.setItem('kindle-calc-quip', i); } catch {}
+  return QUIPS[i];
+})();
 const PACES = {slow: 35, average: 55, fast: 90};
 const DEFAULTS = {defPages:320, defPrice:7.99, minPerPage:1.1, pagesPerDay:55, currency:'USD', doneAt:90, borrowed:false, samples:false, grAll:false};
 const S = {showMoney:false, books: DEMO.map(b => ({...b})), settings:{...DEFAULTS}, demo:true, mode:'demo', filter:'all', q:'', sort:{k:'date', dir:-1}, limit:150};
@@ -680,7 +687,7 @@ function renderStats() {
   if (leftPages > 0) {
     const d = new Date(Date.now() + days * 864e5);
     $('#fClear').textContent = d.toLocaleDateString(undefined, {month:'short', year:'numeric'});
-    $('#fClearL').textContent = `everything read at ${S.settings.pagesPerDay} pages a day (${days > 730 ? (days/365).toFixed(1) + ' years' : fmtInt(days) + ' days'}), or until your next 1-Click purchase`;
+    $('#fClearL').textContent = `everything read at ${S.settings.pagesPerDay} pages a day (${days > 730 ? (days/365).toFixed(1) + ' years' : fmtInt(days) + ' days'})${QUIP}`;
   } else { $('#fClear').textContent = 'Done'; $('#fClearL').textContent = 'nothing left to read'; }
   const dated = pile.filter(b => b.date && !b.dateEst).sort((a,b) => a.date.localeCompare(b.date));
   if (dated.length) {
@@ -1316,7 +1323,7 @@ async function lookupKindlePrices() {
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '1.19';
+const LATEST_SCRIPT = '1.20';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 function checkScriptVersion(v) {
