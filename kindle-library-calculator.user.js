@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.20
+// @version      1.21
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -549,7 +549,12 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background
 .banner p{margin:0;max-width:70ch}
 
 /* summary */
-.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:10px;overflow:hidden}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:10px;overflow:visible}
+.tile:first-child{border-radius:9px 0 0 9px}.tile:last-child{border-radius:0 9px 9px 0}
+.tip{position:relative;border-bottom:1px dotted currentColor;cursor:help;outline-offset:2px}
+.tipbox{position:absolute;left:0;top:calc(100% + 8px);width:min(290px,78vw);background:var(--ink);color:var(--bg);padding:10px 12px;border-radius:8px;font-size:.8rem;line-height:1.45;z-index:20;opacity:0;visibility:hidden;transition:opacity .12s;box-shadow:0 6px 20px rgba(0,0,0,.25);font-family:var(--body)}
+.tipbox ul{margin:6px 0;padding-left:1.1em}
+.tip:hover .tipbox,.tip:focus .tipbox,.tip:focus-within .tipbox{opacity:1;visibility:visible}
 .tile{background:var(--paper);padding:16px 18px;display:flex;flex-direction:column;gap:4px;min-width:0}
 .tile .big{font-family:var(--mono);font-size:1.75rem;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1;overflow-wrap:anywhere}
 .tile .sub{font-size:.82rem;color:var(--muted)}
@@ -680,7 +685,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.78rem;re
 #toast.show{opacity:1}
 
 @media (max-width:900px){.grid3{grid-template-columns:1fr}.pile{grid-template-columns:1fr}}
-@media (max-width:640px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.tile .big{font-size:1.35rem}h1{font-size:1.35rem}.form{grid-template-columns:1fr}.facts{grid-template-columns:1fr 1fr}}
+@media (max-width:640px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.tile:first-child{border-radius:9px 0 0 0}.tile:nth-child(2){border-radius:0 9px 0 0}.tile:nth-child(3){border-radius:0 0 0 9px}.tile:last-child{border-radius:0 0 9px 0}.tile .big{font-size:1.35rem}h1{font-size:1.35rem}.form{grid-template-columns:1fr}.facts{grid-template-columns:1fr 1fr}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 `);
 
@@ -936,7 +941,10 @@ function renderStats() {
 
   $('#tBooks').textContent = fmtInt(n);
   const hidden = S.books.length - n;
-  $('#tBooksSub').textContent = `${fmtInt(by.finished.length)} finished` + (hidden ? ` · ${hidden} not counted` : '');
+  const why = {shared:['shared with you (Family Library)'], ku:['Kindle Unlimited'], prime:['Prime Reading'], other:['borrowed or library loan', 'borrowed or library loans'], sample:['sample', 'samples']};
+  const nc = {}; S.books.forEach(b => { if (!counted(b)) nc[b.source] = (nc[b.source] || 0) + 1; });
+  const tip = `<span class="tipbox" role="tooltip"><strong>Not counted</strong> means books you didn't buy yourself. They stay in your library but are left out of the totals, value, charts and Shelf of Shame:<ul>${Object.keys(why).filter(k => nc[k]).map(k => `<li>${nc[k]} ${why[k][nc[k] === 1 ? 0 : why[k].length - 1]}</li>`).join('')}</ul>See them with the <strong>Not counted</strong> button under Your library. To include them, turn them on in <strong>Settings</strong>, or click a book and change <strong>How you got it</strong>.</span>`;
+  $('#tBooksSub').innerHTML = `${fmtInt(by.finished.length)} finished` + (hidden ? ` · <span class="tip" tabindex="0">${hidden} not counted${tip}</span>` : '');
   const mask = v => S.showMoney ? fmtMoney(v) : '••••••';
   $('#tValue').textContent = mask(value);
   $('#tValue').classList.toggle('masked', !S.showMoney);
@@ -1624,7 +1632,7 @@ async function lookupKindlePrices() {
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '1.20';
+const LATEST_SCRIPT = '1.21';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 function checkScriptVersion(v) {
