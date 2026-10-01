@@ -126,6 +126,9 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background
 .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.8rem}
 .legend span{display:inline-flex;gap:6px;align-items:center}
 .legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.files{border-top:1px solid var(--rule);margin-top:14px;padding-top:12px;display:flex;flex-direction:column;gap:6px}
+.files h4{margin:0;font-size:.9rem}
+.files .note{margin:0}
 .statlist{display:flex;flex-direction:column;gap:6px;font-size:.88rem}
 .statlist .num{white-space:nowrap}
 .statlist div{display:flex;justify-content:space-between;gap:8px}
@@ -240,16 +243,14 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.78rem;re
     </div>
     <div class="actions">
       <button class="btn primary" id="btnSync" hidden>Sync now</button>
-      <button class="btn primary" id="btnImport">Import library</button>
       <button class="btn" id="btnAdd">Add book</button>
       <button class="btn" id="btnSettings">Settings</button>
-      <button class="btn" id="btnExport">Back up</button>
     </div>
   </header>
 
   <div class="banner" id="demoBanner">
-    <p><strong>This is an example library</strong> of public-domain classics so you can see how it works. Import your Kindle library to replace it. Your books are saved in this browser only.</p>
-    <div class="row"><button class="btn primary" id="bannerImport">Import my Kindle books</button><button class="btn" id="bannerEmpty">Start empty</button></div>
+    <p><strong>This is an example library</strong> of public-domain classics so you can see how it works. Install the free sync script and your own Kindle library replaces it automatically. Your books are saved in this browser only.</p>
+    <div class="row"><button class="btn primary" id="bannerImport">Set up sync</button><button class="btn" id="bannerEmpty">Start empty</button></div>
   </div>
 
   <div class="notice" id="notice" role="note">
@@ -323,22 +324,11 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.78rem;re
   <form class="dlg" method="dialog" id="importForm">
     <div class="dlg-head"><h2>Import your books</h2><button class="x" value="cancel" aria-label="Close">×</button></div>
     <div class="tabs" role="tablist" id="impTabs">
-      <button type="button" class="tab" role="tab" data-t="kindle" aria-selected="true">Kindle library</button>
-      <button type="button" class="tab" role="tab" data-t="goodreads" aria-selected="false">Goodreads</button>
+      <button type="button" class="tab" role="tab" data-t="goodreads" aria-selected="true">Goodreads</button>
       <button type="button" class="tab" role="tab" data-t="amazon" aria-selected="false">Amazon orders</button>
       <button type="button" class="tab" role="tab" data-t="csv" aria-selected="false">Any CSV / backup</button>
     </div>
-    <div data-p="kindle">
-      <ol class="steps">
-        <li>On a computer, open <strong>read.amazon.com/kindle-library</strong> in Chrome, Edge or Firefox and sign in.</li>
-        <li>Open the developer console (F12, then the Console tab). Paste the script below and press Enter.</li>
-        <li>It walks your whole library, copies the result and saves <span class="num">kindle-library.json</span>. Paste it below or drop the file in.</li>
-      </ol>
-      <div class="code" style="margin-top:12px"><pre id="snippet"></pre><button type="button" class="btn small" id="copySnippet">Copy script</button></div>
-      <p class="note" style="margin-top:8px">The script only reads your own library list, including how far you've read each book, which is how unread books are found automatically. It uses an unofficial Amazon page, so if it stops working, use the Goodreads or CSV route.</p>
-      <p class="note" style="margin-top:8px"><strong>Purchase dates from the Kindle app:</strong> if you use Kindle for PC, drop in <span class="num">KindleSyncMetadataCache.xml</span> from <span class="num">%LOCALAPPDATA%\Amazon\Kindle\Cache</span> (paste that into the File Explorer address bar). It adds the date you bought each book.</p>
-    </div>
-    <div data-p="goodreads" hidden>
+    <div data-p="goodreads">
       <ol class="steps">
         <li>On goodreads.com go to <strong>My Books → Import and export → Export library</strong>.</li>
         <li>Download the CSV and drop it here. Shelves map to status: to-read is unread, currently-reading is reading, read is finished.</li>
@@ -355,8 +345,8 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.78rem;re
     <div data-p="csv" hidden>
       <p class="note" style="font-size:.88rem">Any CSV with a header row works. Recognised columns: <span class="num">title, author, asin, pages, price, date, status, progress, rating, source</span>. Status can be unread, reading, finished or abandoned. A backup file from this page also goes here.</p>
     </div>
-    <div class="drop" id="drop">Drop a .json, .csv or .xml file here, or <label style="color:var(--accent);cursor:pointer;text-decoration:underline">choose a file<input type="file" id="file" accept=".json,.csv,.txt,.xml,text/csv,application/json,text/xml" hidden></label></div>
-    <textarea id="paste" placeholder="…or paste the copied data here"></textarea>
+    <div class="drop" id="drop">Drop the file here, or <label style="color:var(--accent);cursor:pointer;text-decoration:underline">choose a file<input type="file" id="file" accept=".json,.csv,.txt,.xml,text/csv,application/json,text/xml" hidden></label></div>
+    <textarea id="paste" hidden></textarea>
     <label class="check"><input type="checkbox" id="replace"> Replace my current library instead of merging</label>
     <div class="dlg-foot"><span class="result" id="impResult"></span><button type="button" class="btn primary" id="doImport">Import</button></div>
   </form>
@@ -402,6 +392,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.78rem;re
       <label class="check full" data-us hidden><input type="checkbox" id="sGrAll"> Include Goodreads books that aren't in my Kindle library</label>
     </div>
     <p class="note">Kindle doesn't report page counts or prices, so unknown values use the numbers above. Values you enter per book always win. About one minute per page is typical for adult fiction.</p>
+    <div class="files"><h4>Files and backups</h4><p class="note">Only needed if you don't use the sync script, or to move your library to another browser.</p><div class="row"><button type="button" class="btn" id="btnImport">Import a file</button><button type="button" class="btn" id="btnExport">Back up library</button></div></div>
     <div class="dlg-foot"><div class="row"><button type="button" class="btn danger" id="wipe">Delete all books</button><span class="result err" id="wipeConfirm"></span></div><button type="submit" class="btn primary">Save</button></div>
   </form>
 </dialog>
@@ -885,7 +876,7 @@ function renderShelf() {
       <td class="num muted" style="white-space:nowrap">${b.date || '—'}</td>
       <td class="stars">${b.rating ? '★'.repeat(b.rating) : '<span class="muted">—</span>'}</td>
     </tr>`;
-  }).join('') : `<tr><td colspan="7" class="empty-shelf">${S.books.length ? 'No books match.' : 'No books yet. Use <strong>Import library</strong> or <strong>Add book</strong>.'}</td></tr>`;
+  }).join('') : `<tr><td colspan="7" class="empty-shelf">${S.books.length ? 'No books match.' : 'No books yet. Use <strong>Add book</strong>, or <strong>Settings → Import a file</strong>.'}</td></tr>`;
   $('#showMore').hidden = list.length <= S.limit;
   $('#showMore').textContent = `Show more (${fmtInt(list.length - S.limit)} left)`;
 }
@@ -981,37 +972,13 @@ $('#wipe').onclick = () => {
 };
 
 // ---------- import ----------
-const SNIPPET = `(async () => {
-  const items = []; let token = '';
-  for (let page = 0; page < 400; page++) {
-    const url = '/kindle-library/search?query=&libraryType=BOOKS&sortType=recency&querySize=50' + (token ? '&paginationToken=' + encodeURIComponent(token) : '');
-    const r = await fetch(url, { credentials: 'include' });
-    if (!r.ok) { console.warn('Stopped: HTTP ' + r.status); break; }
-    const j = await r.json();
-    items.push(...(j.itemsList || []));
-    console.log('Fetched ' + items.length + ' books…');
-    if (!j.paginationToken) break;
-    token = j.paginationToken;
-  }
-  const text = JSON.stringify({ source: 'kindle-cloud-reader', exported: new Date().toISOString(), items });
-  try { copy(text); console.log('Copied to clipboard.'); } catch (e) {}
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
-  a.download = 'kindle-library.json'; document.body.appendChild(a); a.click(); a.remove();
-  console.log('Done: ' + items.length + ' books. Paste into the calculator or drop in kindle-library.json.');
-})();`;
-$('#snippet').textContent = SNIPPET;
-$('#copySnippet').onclick = async () => {
-  try { await navigator.clipboard.writeText(SNIPPET); toast('Script copied'); }
-  catch { const r = document.createRange(); r.selectNodeContents($('#snippet')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast('Press Ctrl+C / Cmd+C to copy'); }
-};
 $('#impTabs').addEventListener('click', e => {
   const t = e.target.closest('[data-t]'); if (!t) return;
   document.querySelectorAll('#impTabs .tab').forEach(b => b.setAttribute('aria-selected', b === t));
   document.querySelectorAll('[data-p]').forEach(p => p.hidden = p.dataset.p !== t.dataset.t);
 });
-const openImport = () => { $('#impResult').textContent = ''; $('#impResult').className = 'result'; $('#replace').checked = false; $('#dlgImport').showModal(); };
-$('#btnImport').onclick = openImport; $('#bannerImport').onclick = () => syncOn ? runSync(true) : openImport();
+const openImport = () => { if ($('#dlgSettings').open) $('#dlgSettings').close(); $('#impResult').textContent = ''; $('#impResult').className = 'result'; $('#replace').checked = false; $('#dlgImport').showModal(); };
+$('#btnImport').onclick = openImport; $('#bannerImport').onclick = () => syncOn ? runSync(true) : window.open('https://github.com/Kirbeeman/bookshelfcalc#automatic-sync-install-the-script', '_blank', 'noopener');
 $('#btnSync').onclick = () => runSync(true);
 $('#bannerEmpty').onclick = () => { leaveDemo(true); renderAll(); scheduleSave(); };
 
@@ -1293,7 +1260,6 @@ function enableSync() {
   if (syncOn) return;
   syncOn = true;
   $('#btnSync').hidden = false;
-  $('#btnImport').classList.remove('primary');
   $('#bannerImport').textContent = 'Sync now';
   const p = $('#demoBanner p'); if (p) p.innerHTML = '<strong>This is an example library.</strong> Your first sync replaces it with your Kindle library and Goodreads shelves.';
   setSync('Connected to the sync script');
@@ -1434,7 +1400,7 @@ async function lookupBookInfo() {
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '1.32';
+const LATEST_SCRIPT = '1.33';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 function checkScriptVersion(v) {

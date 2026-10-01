@@ -138,22 +138,7 @@ Use this on a phone, or if you don't want to install Tampermonkey. Without the s
 
 Open **https://bookshelf.kirbee213.tv**. You'll see an example library of public-domain classics first. It disappears as soon as you import your own books or click **Start empty**.
 
-Click **Import library** and choose a tab:
-
-### Kindle library (console script)
-
-Gets the list of every Kindle book you own.
-
-1. On a computer, open **https://read.amazon.com/kindle-library** and sign in.
-2. Press **F12** and click the **Console** tab.
-3. In the calculator's Import window, click **Copy script**, paste it into the console and press **Enter**.
-   - Chrome may ask you to type `allow pasting` first. Type it, press Enter, then paste again.
-4. The console counts up as it reads your library ("Fetched 50 books… 100 books…"). When it finishes it:
-   - copies the data to your clipboard, and
-   - downloads **kindle-library.json** to your Downloads folder.
-5. Back in the calculator, paste into the box (or drop in the file) and click **Import**.
-
-> Amazon's library list does **not** include how far you've read, so every Kindle book comes in as Unread. Import your Goodreads shelves on top (below) or mark books by hand to fix that.
+Open **Settings**, click **Import a file** under *Files and backups*, and choose a tab. No console or developer tools are involved.
 
 ### Goodreads
 
@@ -175,7 +160,7 @@ Adds prices and purchase dates to books you've already imported.
 
 ### Any CSV or a backup
 
-Any spreadsheet saved as CSV works if the first row has column names. Recognised columns: `title`, `author`, `asin`, `pages`, `price`, `date`, `status`, `progress`, `rating`, `source`. Backup files from the **Back up** button go here too.
+Any spreadsheet saved as CSV works if the first row has column names. Recognised columns: `title`, `author`, `asin`, `pages`, `price`, `date`, `status`, `progress`, `rating`, `source`. Backup files from **Back up library** go here too.
 
 ### Merge or replace
 
@@ -229,14 +214,14 @@ A status you set by hand is **locked**: later imports and syncs won't overwrite 
 
 Click **Export spreadsheet** next to the search box under **Your library**. You get an Excel file (`kindle-library-<date>.xlsx`) that opens in Excel, Google Sheets, Numbers or LibreOffice, with one row per book: title, author, status, progress, pages, price paid, purchase date, how you got it, genre, rating, whether it's counted in your totals, and ASIN. The header row stays put while you scroll, and every column has a filter arrow, so you can sort or filter by any column right away. Dates and prices are real dates and numbers, so they sort correctly.
 
-The spreadsheet is a copy for looking at. To move your library to another computer, use **Back up** (below).
+The spreadsheet is a copy for looking at. To move your library to another computer, use **Back up library** (below).
 
 ## Backing up and moving to another computer
 
 Your library lives in the browser you used. Clearing browser data, switching browsers or changing computers starts you over. To keep it:
 
-1. Click **Back up**. A file like `kindle-library-2026-09-30.json` downloads.
-2. On the other computer or browser, open the calculator, click **Import**, choose **Any CSV / backup** and drop in the file.
+1. Open **Settings** and click **Back up library**. A file like `kindle-library-2026-09-30.json` downloads.
+2. On the other computer or browser, open the calculator, go to **Settings → Import a file**, choose **Any CSV / backup** and drop in the file.
 
 The goodreads.com/kindle-calculator page stores its data separately from bookshelf.kirbee213.tv. A backup from one imports into the other.
 
@@ -254,16 +239,13 @@ Sign in to goodreads.com in the same browser, open any Goodreads page once, then
 Sign in at read.amazon.com in the same browser, then press **Sync now**. If Tampermonkey asked about connecting to amazon.com and you blocked it, allow it in the Tampermonkey dashboard under the script's **Settings → XHR Security**.
 
 **"Goodreads failed: …" in the status line.**
-Goodreads may be slow or may have changed its pages. Press **Sync now** again. If it keeps failing, use the Goodreads CSV export in **Import library** instead.
+Goodreads may be slow or may have changed its pages. Press **Sync now** again. If it keeps failing, use the Goodreads CSV export in **Settings → Import a file** instead.
 
 **Every book shows as Unread.**
 That's expected from the Kindle list on its own. Amazon doesn't share reading progress there. Sync Goodreads or mark books by hand.
 
 **A book I've read is still on the Shelf of Shame.**
 It didn't match between Kindle and Goodreads. Set its status in the table and it stays that way.
-
-**The console script says `allow pasting`.**
-Chrome's safety check. Type `allow pasting`, press Enter, then paste the script again.
 
 **The example library won't go away.**
 Click **Start empty** or import something. The example books are never saved.
