@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.8
+// @version      1.9
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -118,6 +118,36 @@ async function fetchKindle(progress) {
   }
   return items;
 }
+function gmPost(url, body) {
+  return new Promise((resolve, reject) => GM_xmlhttpRequest({
+    method: 'POST', url, data: body, timeout: 30000,
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    onload: r => resolve({status: r.status, text: r.responseText}),
+    onerror: () => reject(new Error('network error')),
+    ontimeout: () => reject(new Error('timed out')),
+  }));
+}
+// Purchase dates (and Kindle's own "Mark as read" flag) from Amazon's Content & Devices page
+async function fetchOwnership(progress) {
+  const shop = GM_getValue('kindleHost', 'read.amazon.com').replace(/^read\./, 'www.');
+  const page = await gmGet(`https://${shop}/hz/mycd/digital-console/contentlist/booksAll/dateDsc/`);
+  const token = (page.text.match(/csrfToken\s*[=:]\s*["']([^"']+)/) || [])[1];
+  if (!token) throw new Error(`sign in at ${shop} first`);
+  const items = []; const BATCH = 100;
+  for (let start = 0; start < 5000; start += BATCH) {
+    const input = {contentType: 'Ebook', contentCategoryReference: 'booksAll', itemStatusList: ['Active'], showSharedContent: true,
+      fetchCriteria: {sortOrder: 'DESCENDING', sortIndex: 'DATE', startIndex: start, batchSize: BATCH, totalContentCount: -1}, surfaceType: 'LargeDesktop'};
+    const r = await gmPost(`https://${shop}/hz/mycd/digital-console/ajax`,
+      'activity=GetContentOwnershipData&activityInput=' + encodeURIComponent(JSON.stringify(input)) + '&csrfToken=' + encodeURIComponent(token));
+    let j; try { j = JSON.parse(r.text).GetContentOwnershipData; } catch { throw new Error('Amazon sent an unexpected reply'); }
+    const batch = (j && j.items) || [];
+    for (const b of batch) items.push({asin: b.asin, acquiredTime: b.acquiredTime, acquiredDate: b.acquiredDate, readStatus: b.readStatus, originType: b.originType});
+    progress(`Reading purchase dates… ${items.length}${j && j.numberOfItems ? ' of ' + j.numberOfItems : ''}`);
+    if (batch.length < BATCH || (j.numberOfItems && items.length >= j.numberOfItems)) break;
+  }
+  if (!items.length) throw new Error('no books found on Content & Devices');
+  return items;
+}
 const KLC_CORE = {
   // JSON fetch that works on any page (used for genre lookups from Google Books)
   async getJSON(url) {
@@ -136,6 +166,12 @@ const KLC_CORE = {
       catch (e) { out.kErr = e.message || String(e); }
     }
     out.kindle = k;
+    let o = null; try { o = JSON.parse(GM_getValue('owned', 'null')); } catch {}
+    if (force || !o || Date.now() - o.time > 24 * 3600e3) {
+      try { progress('Reading purchase dates…'); o = {time: Date.now(), items: await fetchOwnership(progress)}; GM_setValue('owned', JSON.stringify(o)); }
+      catch (e) { out.oErr = e.message || String(e); }
+    }
+    out.owned = o;
     return out;
   },
 };
@@ -999,6 +1035,7 @@ $('#editForm').addEventListener('submit', e => {
     title: $('#eTitle').value.trim(), author: $('#eAuthor').value.trim(), asin: $('#eAsin').value.trim(),
     status: $('#eStatus').value, progress: Math.max(0, Math.min(100, +$('#eProgress').value || 0)),
     pages: num($('#ePages').value), price: num($('#ePrice').value), date: $('#eDate').value || '',
+    ...(($('#eDate').value || '') !== ((editing && editing.date) || '') ? {dateManual: true, dateEst: false} : {}),
     source: $('#eSource').value, rating: +$('#eRating').value, lock: true,
     ...($('#eGenre').value ? {genre: $('#eGenre').value, genreSrc: 'manual'} : (editing && editing.genreSrc === 'manual' ? {genre: '', genreSrc: ''} : {})),
   };
@@ -1305,6 +1342,21 @@ function normGoodreads(list) {
   })).filter(b => b.title);
 }
 
+// Real purchase dates from Amazon replace missing or estimated ones; Kindle's "Mark as read" marks a book finished
+function applyOwnership(items) {
+  if (!items || !items.length) return 0;
+  const byAsin = new Map(items.map(i => [String(i.asin || '').toUpperCase(), i]));
+  let n = 0;
+  for (const b of S.books) {
+    const o = b.asin && byAsin.get(b.asin.toUpperCase());
+    if (!o) continue;
+    const d = o.acquiredTime ? new Date(+o.acquiredTime).toISOString().slice(0,10) : toDate(o.acquiredDate);
+    if (d && (!b.date || b.dateEst || b.date !== d) && !b.dateManual) { b.date = d; b.dateEst = false; }
+    if (d) n++;
+    if (/^READ$/i.test(o.readStatus || '') && !b.lock && b.status !== 'finished') { b.status = 'finished'; b.progress = 100; }
+  }
+  return n;
+}
 async function runSync(force) {
   if (syncing || !syncOn) return;
   syncing = true; $('#btnSync').disabled = true;
@@ -1318,11 +1370,13 @@ async function runSync(force) {
     leaveDemo(true);
     if (kItems.length) merge(fromKindle(kItems), false, 'kindle');
     const res = merge(gr, false, 'goodreads', !kItems.length || S.settings.grAll);
+    const dated = applyOwnership(data.owned?.items);
     renderAll(); scheduleSave();
     const when = new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
     const grTxt = data.grErr ? `Goodreads failed: ${data.grErr}` : `Goodreads ${gr.length} books, ${res.updated} matched`;
+    const oTxt = data.oErr ? ` · Purchase dates failed: ${data.oErr}` : dated ? ` · ${dated} purchase dates` : '';
     const kTxt = data.kErr && !kItems.length ? `Kindle failed: ${data.kErr}` : kItems.length ? `Kindle ${kItems.length} books` + (data.kErr ? ' (older copy: ' + data.kErr + ')' : '') : 'Kindle not synced';
-    setSync(`Synced ${when} · ${grTxt} · ${kTxt}`, data.grErr || data.kErr ? 'local' : 'db');
+    setSync(`Synced ${when} · ${grTxt} · ${kTxt}${oTxt}`, data.grErr || data.kErr || data.oErr ? 'local' : 'db');
   } catch (e) {
     setSync(e.message || String(e), 'local');
   } finally { syncing = false; $('#btnSync').disabled = false; }

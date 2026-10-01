@@ -40,7 +40,7 @@ Your books are stored only in your own browser. Nothing is sent to a server, and
 
 Statuses are **Unread**, **Reading**, **Finished** and **Gave up**. Only **Unread** books go on the Shelf of Shame.
 
-Books bought in the **last 5 days** are outlined in gold and placed first on the Shelf of Shame, with a *new* tag in the library table. Kindle doesn't report purchase dates, so a Kindle book that shows up in a sync after your first import is dated the day it first appeared. Dates from the Kindle for PC app file or an Amazon orders file are exact. To mark a book as just bought yourself, click its title and set **Added on** to the purchase date.
+Books bought in the **last 5 days** are outlined in gold and placed first on the Shelf of Shame, with a *new* tag in the library table. With the sync script, purchase dates come straight from Amazon. Without it, dates come from the Kindle for PC app file or an Amazon orders file, and a Kindle book that first shows up after your first import is dated the day it appeared. To mark a book as just bought yourself, click its title and set **Added on** to the purchase date.
 
 **Spine color.** Above the bookcase, switch **Spine color** between **Default** (mixed book-cloth colors) and **By genre**. In genre mode each spine is colored by genre, with a key under the shelf showing how many unread books are in each. Genres are looked up from Google Books the first time you switch it on (about 4 books a second, unread books first) and saved, so it only happens once per book. Google Books limits free lookups per day; if a big library hits the limit, the rest continue next time. To fix a wrong genre, click the book's title and pick one from **Genre**. Genres: Mystery & Thriller, Romance, Sci-Fi & Fantasy, Horror, General Fiction, History & Biography, Self-help & Health, Cooking & Food, Humor, Kids & YA, Comics, Other Nonfiction.
 
@@ -65,8 +65,8 @@ Once it's installed you never export, download or upload anything.
 
 ### Install (one time)
 
-1. Install **Tampermonkey** from your browser's extension store (Chrome Web Store, Edge Add-ons or Firefox Add-ons).
-2. **Chrome and Edge only:** go to `chrome://extensions` (or `edge://extensions`), click **Details** on Tampermonkey and turn on **Allow User Scripts**. On older versions, turn on **Developer mode** at the top right of the extensions page instead. Without this, the script installs but never runs.
+1. Install **Tampermonkey** from your browser's extension store (Chrome Web Store, Edge Add-ons, Firefox Add-ons or Opera add-ons).
+2. **Chrome, Edge and Opera:** go to `chrome://extensions` (or `edge://extensions`, or `opera://extensions`), click **Details** on Tampermonkey and turn on **Allow User Scripts**. On older versions, turn on **Developer mode** at the top right of the extensions page instead. Without this, the script installs but never runs.
 3. Open [`kindle-library-calculator.user.js`](kindle-library-calculator.user.js) in this repo and click **Raw**. Tampermonkey opens an install page. Click **Install**.
 
 You can also copy the file's contents, open the Tampermonkey dashboard, click the **+** tab, paste and press **Ctrl+S**.
@@ -84,12 +84,13 @@ Tampermonkey updates the script by itself. It checks this GitHub repo about once
 1. The page finds the script and shows **Sync now** and a status line under the title.
 2. The script reads your Goodreads **to-read**, **currently-reading** and **read** shelves. The status line shows progress, for example *Reading your Goodreads "read" shelf…*
 3. It reads your **Kindle library** list in pages of 50 (*Reading your Kindle library… 150 books*). To keep things quick it reuses the last copy for up to 6 hours. **Sync now** always fetches a fresh one.
-4. It **matches the two** (see the next section) and updates the numbers, charts and Shelf of Shame.
-5. Everything is saved in your browser for next time.
+4. It reads **purchase dates** from Amazon's **Content & Devices** page (once a day, or whenever you press **Sync now**). Every book gets the real date you bought it. If you used Kindle's own **Mark as read**, those books count as finished too.
+5. It **matches the two** (see the next section) and updates the numbers, charts and Shelf of Shame.
+6. Everything is saved in your browser for next time.
 
 When it's done, the status line reads something like:
 
-> Synced 11:20 AM · Goodreads 412 books, 380 matched · Kindle 597 books
+> Synced 11:20 AM · Goodreads 412 books, 380 matched · Kindle 597 books · 597 purchase dates
 
 The script works in the background using your existing Goodreads and Amazon sign-ins, so you need to be **signed in to goodreads.com and read.amazon.com** in the same browser. It only reads; it never changes anything in either account. The first time, Tampermonkey may ask you to allow the script to connect to goodreads.com and amazon.com. Choose **Always allow**.
 

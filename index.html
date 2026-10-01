@@ -807,6 +807,7 @@ $('#editForm').addEventListener('submit', e => {
     title: $('#eTitle').value.trim(), author: $('#eAuthor').value.trim(), asin: $('#eAsin').value.trim(),
     status: $('#eStatus').value, progress: Math.max(0, Math.min(100, +$('#eProgress').value || 0)),
     pages: num($('#ePages').value), price: num($('#ePrice').value), date: $('#eDate').value || '',
+    ...(($('#eDate').value || '') !== ((editing && editing.date) || '') ? {dateManual: true, dateEst: false} : {}),
     source: $('#eSource').value, rating: +$('#eRating').value, lock: true,
     ...($('#eGenre').value ? {genre: $('#eGenre').value, genreSrc: 'manual'} : (editing && editing.genreSrc === 'manual' ? {genre: '', genreSrc: ''} : {})),
   };
@@ -1113,6 +1114,21 @@ function normGoodreads(list) {
   })).filter(b => b.title);
 }
 
+// Real purchase dates from Amazon replace missing or estimated ones; Kindle's "Mark as read" marks a book finished
+function applyOwnership(items) {
+  if (!items || !items.length) return 0;
+  const byAsin = new Map(items.map(i => [String(i.asin || '').toUpperCase(), i]));
+  let n = 0;
+  for (const b of S.books) {
+    const o = b.asin && byAsin.get(b.asin.toUpperCase());
+    if (!o) continue;
+    const d = o.acquiredTime ? new Date(+o.acquiredTime).toISOString().slice(0,10) : toDate(o.acquiredDate);
+    if (d && (!b.date || b.dateEst || b.date !== d) && !b.dateManual) { b.date = d; b.dateEst = false; }
+    if (d) n++;
+    if (/^READ$/i.test(o.readStatus || '') && !b.lock && b.status !== 'finished') { b.status = 'finished'; b.progress = 100; }
+  }
+  return n;
+}
 async function runSync(force) {
   if (syncing || !syncOn) return;
   syncing = true; $('#btnSync').disabled = true;
@@ -1126,11 +1142,13 @@ async function runSync(force) {
     leaveDemo(true);
     if (kItems.length) merge(fromKindle(kItems), false, 'kindle');
     const res = merge(gr, false, 'goodreads', !kItems.length || S.settings.grAll);
+    const dated = applyOwnership(data.owned?.items);
     renderAll(); scheduleSave();
     const when = new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
     const grTxt = data.grErr ? `Goodreads failed: ${data.grErr}` : `Goodreads ${gr.length} books, ${res.updated} matched`;
+    const oTxt = data.oErr ? ` · Purchase dates failed: ${data.oErr}` : dated ? ` · ${dated} purchase dates` : '';
     const kTxt = data.kErr && !kItems.length ? `Kindle failed: ${data.kErr}` : kItems.length ? `Kindle ${kItems.length} books` + (data.kErr ? ' (older copy: ' + data.kErr + ')' : '') : 'Kindle not synced';
-    setSync(`Synced ${when} · ${grTxt} · ${kTxt}`, data.grErr || data.kErr ? 'local' : 'db');
+    setSync(`Synced ${when} · ${grTxt} · ${kTxt}${oTxt}`, data.grErr || data.kErr || data.oErr ? 'local' : 'db');
   } catch (e) {
     setSync(e.message || String(e), 'local');
   } finally { syncing = false; $('#btnSync').disabled = false; }
