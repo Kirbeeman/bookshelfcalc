@@ -207,6 +207,12 @@ A status you set by hand is **locked**: later imports and syncs won't overwrite 
 
 ---
 
+## Exporting a spreadsheet
+
+Click **Export spreadsheet** next to the search box under **Your library**. You get an Excel file (`kindle-library-<date>.xlsx`) that opens in Excel, Google Sheets, Numbers or LibreOffice, with one row per book: title, author, status, progress, pages, price paid, purchase date, how you got it, genre, rating, whether it's counted in your totals, and ASIN. The header row stays put while you scroll, and every column has a filter arrow, so you can sort or filter by any column right away. Dates and prices are real dates and numbers, so they sort correctly.
+
+The spreadsheet is a copy for looking at. To move your library to another computer, use **Back up** (below).
+
 ## Backing up and moving to another computer
 
 Your library lives in the browser you used. Clearing browser data, switching browsers or changing computers starts you over. To keep it:

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.10
+// @version      1.11
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -297,7 +297,7 @@ document.body.innerHTML = `<div class="wrap">
   <section class="shelf" aria-labelledby="shelfH">
     <div class="toolbar">
       <h2 id="shelfH">Your library</h2>
-      <input type="search" id="q" placeholder="Search title or author" aria-label="Search">
+      <div class="row"><input type="search" id="q" placeholder="Search title or author" aria-label="Search"><button class="btn" id="btnXlsx" type="button">Export spreadsheet</button></div>
     </div>
     <div class="chips" id="chips"></div>
     <div class="tablewrap">
@@ -1294,6 +1294,87 @@ $('#doImport').onclick = () => {
     renderAll(); scheduleSave();
     toast(`Imported: ${added} added, ${updated} updated`);
   } catch (e) { res.className = 'result err'; res.textContent = e.message || String(e); }
+};
+
+// ---------- spreadsheet export (.xlsx, built in the page: header row frozen, filter/sort arrows on every column) ----------
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+function zipStore(files) { // files: [{name, data: Uint8Array}] -> Uint8Array, uncompressed zip
+  const enc = new TextEncoder(), parts = [], central = []; let off = 0;
+  for (const f of files) {
+    const nm = enc.encode(f.name), crc = crc32(f.data), sz = f.data.length;
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint32(14, crc, true); h.setUint32(18, sz, true); h.setUint32(22, sz, true); h.setUint16(26, nm.length, true);
+    parts.push(new Uint8Array(h.buffer), nm, f.data);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint32(16, crc, true); c.setUint32(20, sz, true); c.setUint32(24, sz, true); c.setUint16(28, nm.length, true); c.setUint32(42, off, true);
+    central.push(new Uint8Array(c.buffer), nm);
+    off += 30 + nm.length + sz;
+  }
+  const cdSize = central.reduce((a, p) => a + p.length, 0);
+  const e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, cdSize, true); e.setUint32(16, off, true);
+  const all = [...parts, ...central, new Uint8Array(e.buffer)], out = new Uint8Array(all.reduce((a, p) => a + p.length, 0));
+  let p = 0; for (const a of all) { out.set(a, p); p += a.length; }
+  return out;
+}
+const xEsc = v => String(v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const colName = i => { let s = ''; i++; while (i) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = (i - m - 1) / 26; } return s; };
+function buildXlsx(header, rows, widths) { // cell: string | number | {date:'yyyy-mm-dd'} | {money:n} | null
+  const serial = d => (Date.UTC(+d.slice(0,4), +d.slice(5,7) - 1, +d.slice(8,10)) - Date.UTC(1899, 11, 30)) / 864e5;
+  const cell = (v, r, c) => {
+    const ref = colName(c) + r;
+    if (v == null || v === '') return '';
+    if (typeof v === 'number') return `<c r="${ref}"><v>${v}</v></c>`;
+    if (v.date) return `<c r="${ref}" s="2"><v>${serial(v.date)}</v></c>`;
+    if (v.money != null) return `<c r="${ref}" s="3"><v>${v.money}</v></c>`;
+    return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${xEsc(v)}</t></is></c>`;
+  };
+  const last = colName(header.length - 1) + (rows.length + 1);
+  const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:${last}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
+<cols>${widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')}</cols><sheetData>
+<row r="1">${header.map((h, c) => `<c r="${colName(c)}1" t="inlineStr" s="1"><is><t>${xEsc(h)}</t></is></c>`).join('')}</row>
+${rows.map((row, i) => `<row r="${i + 2}">${row.map((v, c) => cell(v, i + 2, c)).join('')}</row>`).join('\n')}
+</sheetData><autoFilter ref="A1:${last}"/></worksheet>`;
+  const cur = (() => { try { return new Intl.NumberFormat(undefined, {style:'currency', currency:S.settings.currency}).formatToParts(1).find(p => p.type === 'currency').value; } catch { return '$'; } })();
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="2"><numFmt numFmtId="164" formatCode="yyyy-mm-dd"/><numFmt numFmtId="165" formatCode="&quot;${xEsc(cur)}&quot;#,##0.00"/></numFmts>
+<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>
+<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE7E9E4"/></patternFill></fill></fills>
+<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+  const enc = new TextEncoder(), X = s => enc.encode(s);
+  return zipStore([
+    {name: '[Content_Types].xml', data: X(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`)},
+    {name: '_rels/.rels', data: X(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`)},
+    {name: 'xl/workbook.xml', data: X(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Library" sheetId="1" r:id="rId1"/></sheets><definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">Library!$A$1:$${last.replace(/(\d+)$/, '$$$1')}</definedName></definedNames></workbook>`)},
+    {name: 'xl/_rels/workbook.xml.rels', data: X(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`)},
+    {name: 'xl/styles.xml', data: X(styles)},
+    {name: 'xl/worksheets/sheet1.xml', data: X(sheet)},
+  ]);
+}
+const SOURCE_NAME = {purchase:'Bought', free:'Free', ku:'Kindle Unlimited', prime:'Prime Reading', sample:'Sample', shared:'Family Library', other:'Borrowed / other'};
+function libraryXlsx() {
+  const header = ['Title', 'Author', 'Status', 'Progress %', 'Pages', 'Price paid', 'Purchase date', 'How you got it', 'Genre', 'Rating', 'Counted in totals', 'ASIN'];
+  const rows = [...S.books].sort((a, b) => (a.title || '').localeCompare(b.title || '')).map(b => [
+    b.title || '', b.author || '', STATUS[b.status] || b.status || '', Math.round(b.progress || 0), b.pages > 0 ? b.pages : null,
+    b.price != null && b.price !== '' ? {money: +b.price} : null, /^\d{4}-\d{2}-\d{2}$/.test(b.date || '') ? {date: b.date} : null,
+    SOURCE_NAME[b.source] || b.source || '', GENRES[b.genre] && b.genre !== 'unknown' ? GENRES[b.genre] : '', b.rating || null, counted(b) ? 'Yes' : 'No', b.asin || '',
+  ]);
+  return buildXlsx(header, rows, [46, 24, 11, 11, 8, 11, 14, 18, 20, 8, 10, 13]);
+}
+async function saveFile(name, data, mime, okMsg) {
+  try {
+    const dl = window.pageHost?.use ? await window.pageHost.use('downloads') : null;
+    if (dl) { await dl.save({filename: name, data}); toast(okMsg); return; }
+  } catch (e) { if (e?.code === 'declined') return; }
+  try { const u = URL.createObjectURL(new Blob([data], {type: mime})); const l = document.createElement('a'); l.href = u; l.download = name; document.body.appendChild(l); l.click(); l.remove(); setTimeout(() => URL.revokeObjectURL(u), 5000); toast(okMsg); }
+  catch { toast('Downloads are not available here'); }
+}
+$('#btnXlsx').onclick = () => {
+  if (!S.books.length) { toast('No books to export yet'); return; }
+  saveFile(`kindle-library-${new Date().toISOString().slice(0,10)}.xlsx`, libraryXlsx(), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Spreadsheet downloaded');
 };
 
 // ---------- live sync ----------
