@@ -695,13 +695,14 @@ function renderStats() {
   const keys = Object.keys(yrs).sort().slice(-14);
   const max = Math.max(1, ...keys.map(y => Object.values(yrs[y]).reduce((a,b) => a + b, 0)));
   const COLPX = 120; // usable column height in px, for deciding when a segment is tall enough to label
+  const allV = {finished:0, reading:0, unread:0, abandoned:0}; bs.forEach(b => { if (b.status in allV) allV[b.status]++; });
   const yearText = y => {
-    const v = yrs[y], t = v.finished + v.reading + v.unread + v.abandoned;
+    const v = y === 'all' ? allV : yrs[y], t = v.finished + v.reading + v.unread + v.abandoned;
     const parts = [`<span style="color:var(--ok)">${v.finished} read</span>`];
     if (v.reading) parts.push(`<span style="color:var(--accent)">${v.reading} reading</span>`);
     if (v.abandoned) parts.push(`${v.abandoned} gave up`);
     parts.push(`<span style="color:var(--shame)">${v.unread} unread</span>`);
-    return `<b>${y}</b>: ${t} book${t === 1 ? '' : 's'} · ${parts.join(' · ')}`;
+    return `<b>${y === 'all' ? 'All books counted' : y}</b>: ${t} book${t === 1 ? '' : 's'} · ${parts.join(' · ')}`;
   };
   $('#years').innerHTML = keys.length ? keys.map(y => {
     const t = Object.values(yrs[y]).reduce((a,b) => a + b, 0);
@@ -713,9 +714,10 @@ function renderStats() {
     return `<div class="bar" tabindex="0" data-y="${y}" title="${y}: ${t} books, ${yrs[y].finished} read, ${yrs[y].unread} unread"><span class="n">${t}</span><div class="col" style="height:${t / max * 100}%">${segs}</div><span class="y">'${y.slice(2)}</span></div>`;
   }).join('') : '<p class="muted" style="align-self:center">No purchase dates yet.</p>';
   const undated = bs.filter(b => !b.date).length;
-  const baseInfo = keys.length ? yearText(keys[keys.length - 1]) : '';
+  const baseInfo = yearText('all');
   const undatedTxt = undated ? ` <span class="muted">(${fmtInt(undated)} books have no purchase date)</span>` : '';
   $('#yearInfo').innerHTML = baseInfo + undatedTxt;
+  $('#years').onmouseleave = $('#years').onfocusout = () => { $('#yearInfo').innerHTML = baseInfo + undatedTxt; };
   $('#years').onmouseover = $('#years').onfocusin = e => { const b = e.target.closest('.bar'); if (b) $('#yearInfo').innerHTML = yearText(b.dataset.y) + undatedTxt; };
   $('#years').onclick = $('#years').onmouseover;
   $('#yearLegend').innerHTML = order.map(k => `<span><i style="background:${STATUS_COLOR[k]}"></i>${STATUS[k]}</span>`).join('');
@@ -729,13 +731,16 @@ function renderStats() {
 }
 
 function renderShelf() {
-  const counts = {all:S.books.length, unread:0, reading:0, finished:0, abandoned:0};
-  S.books.forEach(b => counts[b.status] = (counts[b.status] || 0) + 1);
+  // Status chips count the same books as the charts (counted ones); books left out of totals get their own chip
+  const counts = {all:S.books.length, unread:0, reading:0, finished:0, abandoned:0, excluded:0};
+  S.books.forEach(b => { if (counted(b)) counts[b.status] = (counts[b.status] || 0) + 1; else counts.excluded++; });
   const labels = {all:'All', unread:'Shelf of Shame', reading:'Reading', finished:'Finished', abandoned:'Gave up'};
+  if (counts.excluded) labels.excluded = 'Not counted';
+  if (S.filter === 'excluded' && !counts.excluded) S.filter = 'all';
   $('#chips').innerHTML = Object.keys(labels).map(k => `<button class="chip" data-f="${k}" aria-pressed="${S.filter === k}">${labels[k]}<span class="c">${counts[k] || 0}</span></button>`).join('');
 
   const q = S.q.trim().toLowerCase();
-  let list = S.books.filter(b => (S.filter === 'all' || b.status === S.filter) && (!q || (b.title + ' ' + b.author).toLowerCase().includes(q)));
+  let list = S.books.filter(b => (S.filter === 'all' || (S.filter === 'excluded' ? !counted(b) : counted(b) && b.status === S.filter)) && (!q || (b.title + ' ' + b.author).toLowerCase().includes(q)));
   const {k, dir} = S.sort;
   const rank = {unread:0, reading:1, abandoned:2, finished:3};
   list.sort((a, b) => {
