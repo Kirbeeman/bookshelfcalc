@@ -69,6 +69,8 @@ Once it's installed you never export, download or upload anything.
 
 ### Install (one time)
 
+The easy way: open **https://bookshelf.kirbee213.tv**. The first time you visit, a step-by-step setup walks you through all of this, with buttons and instructions for your browser. It also comes back if you click **Set up sync** (on the example banner, or in **Settings**). The same steps by hand:
+
 1. Install **Tampermonkey** from your browser's extension store (Chrome Web Store, Edge Add-ons, Firefox Add-ons or Opera add-ons).
 2. **Chrome, Edge and Opera:** go to `chrome://extensions` (or `edge://extensions`, or `opera://extensions`), click **Details** on Tampermonkey and turn on **Allow User Scripts**. On older versions, turn on **Developer mode** at the top right of the extensions page instead. Without this, the script installs but never runs.
 3. Open [`kindle-library-calculator.user.js`](kindle-library-calculator.user.js) in this repo and click **Raw**. Tampermonkey opens an install page. Click **Install**.
@@ -81,7 +83,8 @@ Tampermonkey updates the script by itself: it checks this GitHub repo on a sched
 
 - **Right away:** click the Tampermonkey icon → **Check for userscript updates**.
 - **More often:** Tampermonkey **Dashboard → Settings**, set **Config mode** to **Advanced**, then under **Script Update** change **Check Interval** (for example to every hour).
-- **The site tells you:** from version 1.19 on, if your script is older than the site expects, a note at the top of bookshelf.kirbee213.tv says so, with an **Update it now** link.
+- **The site tells you:** when your script is older than the site, a red dot appears on **Settings**. Open it and click **Update** under *Sync script and updates*, press **Update** in the Tampermonkey tab, and come back. The page finishes by itself.
+- **The page itself** checks for a newer version each visit and reloads on its own between syncs, so you never need Ctrl+F5. **Settings → What's new** lists the changes.
 
 ---
 
