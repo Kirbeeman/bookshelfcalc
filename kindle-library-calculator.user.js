@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.41
+// @version      1.42
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -1045,12 +1045,12 @@ let resizeT; window.addEventListener('resize', () => { clearTimeout(resizeT); re
 // Items are added one by one until the space runs out, so a wider gap gets more of them and a nearly full shelf gets none.
 const DECOR = {
   bookend: [16, 98, `<svg viewBox="0 0 16 98"><path d="M8 2h7v94H8z" fill="var(--dk-metal)"/><path d="M-14 92h29v6h-29z" fill="var(--dk-metal)"/><path d="M12 4h2v86h-2z" fill="rgba(255,255,255,.25)"/></svg>`],
-  plant: [64, 120, `<svg viewBox="0 0 64 120"><g fill="var(--dk-leaf)"><ellipse cx="32" cy="34" rx="7" ry="26"/><ellipse cx="18" cy="48" rx="6" ry="22" transform="rotate(-28 18 48)"/><ellipse cx="46" cy="48" rx="6" ry="22" transform="rotate(28 46 48)"/><ellipse cx="11" cy="66" rx="5" ry="16" transform="rotate(-55 11 66)"/><ellipse cx="53" cy="66" rx="5" ry="16" transform="rotate(55 53 66)"/></g><path d="M32 70V20" stroke="rgba(0,0,0,.18)" stroke-width="1.5"/><path d="M12 76h40l-5 42H17z" fill="var(--dk-pot)"/><path d="M9 72h46v8H9z" fill="var(--dk-pot)"/><path d="M9 79h46v2H9z" fill="rgba(0,0,0,.18)"/></svg>`],
+  plant: [64, 120, `<svg viewBox="0 0 64 120"><g fill="var(--dk-leaf)"><ellipse cx="32" cy="34" rx="7" ry="26"/><ellipse cx="18" cy="48" rx="6" ry="22" transform="rotate(-28 18 48)"/><ellipse cx="46" cy="48" rx="6" ry="22" transform="rotate(28 46 48)"/><ellipse cx="11" cy="66" rx="5" ry="16" transform="rotate(-55 11 66)"/><ellipse cx="53" cy="66" rx="5" ry="16" transform="rotate(55 53 66)"/></g><path d="M32 70V20" stroke="rgba(0,0,0,.18)" stroke-width="1.5"/><path d="M12 76h40l-5 44H17z" fill="var(--dk-pot)"/><path d="M9 72h46v8H9z" fill="var(--dk-pot)"/><path d="M9 79h46v2H9z" fill="rgba(0,0,0,.18)"/></svg>`],
   succulent: [46, 62, `<svg viewBox="0 0 46 62"><g fill="var(--dk-leaf)"><ellipse cx="23" cy="20" rx="6" ry="13"/><ellipse cx="14" cy="26" rx="5" ry="11" transform="rotate(-40 14 26)"/><ellipse cx="32" cy="26" rx="5" ry="11" transform="rotate(40 32 26)"/><ellipse cx="9" cy="33" rx="4" ry="9" transform="rotate(-70 9 33)"/><ellipse cx="37" cy="33" rx="4" ry="9" transform="rotate(70 37 33)"/></g><path d="M7 36h32l-4 26H11z" fill="var(--dk-pot)"/><path d="M7 36h32v4H7z" fill="rgba(0,0,0,.15)"/></svg>`],
   stack: [96, 54, `<svg viewBox="0 0 96 54"><rect x="4" y="38" width="88" height="16" rx="2" fill="var(--cloth-2)"/><rect x="8" y="22" width="78" height="16" rx="2" fill="var(--cloth-1)"/><rect x="2" y="6" width="84" height="16" rx="2" fill="var(--cloth-6)"/><g fill="#efe6cf"><rect x="88" y="40" width="3" height="12"/><rect x="82" y="24" width="3" height="12"/><rect x="82" y="8" width="3" height="12"/></g><g fill="rgba(255,255,255,.25)"><rect x="12" y="10" width="40" height="2"/><rect x="18" y="26" width="34" height="2"/><rect x="14" y="42" width="44" height="2"/></g></svg>`],
-  candle: [32, 96, `<svg viewBox="0 0 32 96"><ellipse class="dk-glow" cx="16" cy="16" rx="14" ry="16" fill="rgba(255,190,90,.35)"/><path class="dk-flame" d="M16 4c4 6 6 10 6 13a6 6 0 0 1-12 0c0-3 2-7 6-13z" fill="#ffcf5a"/><path d="M16 11c2 3 3 5 3 7a3 3 0 0 1-6 0c0-2 1-4 3-7z" fill="#fff4c4"/><path d="M15.4 22h1.2v6h-1.2z" fill="#3a2a1a"/><rect x="9" y="28" width="14" height="58" rx="2" fill="var(--dk-wax)"/><path d="M9 32c3 3 3 9 1 12" stroke="rgba(255,255,255,.35)" stroke-width="2" fill="none"/><ellipse cx="16" cy="90" rx="15" ry="5" fill="var(--dk-metal)"/><rect x="5" y="84" width="22" height="6" rx="2" fill="var(--dk-metal)"/></svg>`],
-  pumpkin: [66, 60, `<svg viewBox="0 0 66 60"><path d="M33 12c1-6 4-9 8-10" stroke="#3f6b1f" stroke-width="4" fill="none" stroke-linecap="round"/><ellipse cx="18" cy="37" rx="15" ry="21" fill="#e2701c"/><ellipse cx="48" cy="37" rx="15" ry="21" fill="#e2701c"/><ellipse cx="33" cy="37" rx="15" ry="22" fill="#f58a2a"/><path d="M33 16v42M22 18c-3 12-3 26 0 38M44 18c3 12 3 26 0 38" stroke="rgba(120,50,0,.35)" stroke-width="1.5" fill="none"/></svg>`],
-  potion: [40, 80, `<svg viewBox="0 0 40 80"><rect x="15" y="2" width="10" height="9" rx="2" fill="#8a5a36"/><path d="M15 10h10v14c9 4 13 11 13 22a18 18 0 0 1-36 0c0-11 4-18 13-22z" fill="rgba(220,210,255,.18)" stroke="rgba(220,210,255,.5)" stroke-width="1.5"/><path d="M4 46a16 16 0 0 0 32 0c0-3-1-6-2-8H6c-1 2-2 5-2 8z" fill="#9be35a"/><circle cx="14" cy="50" r="2.5" fill="rgba(255,255,255,.5)"/><circle cx="22" cy="44" r="1.6" fill="rgba(255,255,255,.5)"/></svg>`],
+  candle: [32, 96, `<svg viewBox="0 0 32 96"><defs><radialGradient id="dkGlow"><stop offset="0" stop-color="#ffc864" stop-opacity=".55"/><stop offset="1" stop-color="#ffc864" stop-opacity="0"/></radialGradient></defs><ellipse class="dk-glow" cx="16" cy="16" rx="16" ry="18" fill="url(#dkGlow)"/><path class="dk-flame" d="M16 4c4 6 6 10 6 13a6 6 0 0 1-12 0c0-3 2-7 6-13z" fill="#ffcf5a"/><path d="M16 11c2 3 3 5 3 7a3 3 0 0 1-6 0c0-2 1-4 3-7z" fill="#fff4c4"/><path d="M15.4 22h1.2v6h-1.2z" fill="#3a2a1a"/><rect x="9" y="28" width="14" height="58" rx="2" fill="var(--dk-wax)"/><path d="M9 32c3 3 3 9 1 12" stroke="rgba(255,255,255,.35)" stroke-width="2" fill="none"/><path d="M6 84h20v4l5 3v5H1v-5l5-3z" fill="var(--dk-metal)"/><path d="M6 85h20v1H6z" fill="rgba(255,255,255,.25)"/></svg>`],
+  pumpkin: [66, 60, `<svg viewBox="0 0 66 60"><path d="M33 12c1-6 4-9 8-10" stroke="#3f6b1f" stroke-width="4" fill="none" stroke-linecap="round"/><ellipse cx="18" cy="39" rx="15" ry="21" fill="#e2701c"/><ellipse cx="48" cy="39" rx="15" ry="21" fill="#e2701c"/><ellipse cx="33" cy="38" rx="15" ry="22" fill="#f58a2a"/><path d="M33 17v43M22 20c-3 12-3 26 0 38M44 20c3 12 3 26 0 38" stroke="rgba(120,50,0,.35)" stroke-width="1.5" fill="none"/></svg>`],
+  potion: [44, 80, `<svg viewBox="-2 0 44 80"><rect x="15" y="2" width="10" height="9" rx="2" fill="#8a5a36"/><path d="M15 10h10v14c9 4 13 11 13 22a18 18 0 0 1-36 0c0-11 4-18 13-22z" fill="rgba(220,210,255,.18)" stroke="rgba(220,210,255,.5)" stroke-width="1.5"/><path d="M4 46a16 16 0 0 0 32 0c0-3-1-6-2-8H6c-1 2-2 5-2 8z" fill="#9be35a"/><circle cx="14" cy="50" r="2.5" fill="rgba(255,255,255,.5)"/><circle cx="22" cy="44" r="1.6" fill="rgba(255,255,255,.5)"/><path d="M-1 60h42v6H-1z" fill="#6e4a2e"/><path d="M-1 60h42v2H-1z" fill="#8a5f3c"/><path d="M1 66h5v14H1zM34 66h5v14h-5z" fill="#5a3b24"/><path d="M-2 76h44v4H-2z" fill="#6e4a2e"/></svg>`],
 };
 const DECOR_SETS = {halloween: ['pumpkin', 'candle', 'potion', 'pumpkin', 'candle'], cozy: ['candle', 'stack', 'plant', 'candle', 'succulent'], default: ['plant', 'stack', 'succulent', 'stack', 'plant']};
 function decorShelf() {
@@ -1896,7 +1896,7 @@ async function lookupBookInfo() {
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '1.41';
+const LATEST_SCRIPT = '1.42';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 let scriptVer = '';
@@ -1910,6 +1910,7 @@ const lsSet1 = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.r
 
 // ---------- what's new (shown in Settings) ----------
 const CHANGES = [
+  ['1.42', ['Shelf decorations sit on the shelf: flat-bottomed pots and candle holders, potion stands, softer candle glow']],
   ['1.41', ['The empty end of the shelf gets a bookend and knick-knacks that fit the space and match your theme']],
   ['1.40', ['New Halloween theme: purple, slime green and pumpkin, with a moon and bats (no spiders)', 'Zon theme looks much more like an online bookstore']],
   ['1.39', ['Themes in Settings: Default, Cozy (candle-lit library), Zon (bright storefront) and Light']],
