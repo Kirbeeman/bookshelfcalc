@@ -647,7 +647,7 @@ function renderStats() {
   const vg = {paid:[0,0], now:[0,0], guess:[0,0], zero:[0,0]};
   bs.forEach(b => { const k = b.source === 'free' ? 'zero' : hasPaid(b) ? 'paid' : b.kp != null ? 'now' : b.source === 'purchase' ? 'guess' : 'zero'; vg[k][0]++; vg[k][1] += valueOf(b); });
   const vrow = (k, label, note) => vg[k][0] ? `<li><b>${fmtInt(vg[k][0])}</b> ${label}: ${fmtMoney(vg[k][1])}${note ? ` <span style="opacity:.75">(${note})</span>` : ''}</li>` : '';
-  const vtip = `<span class="tipbox" role="tooltip"><strong>How this adds up</strong> across your ${fmtInt(n)} counted books:<ul>${vrow('paid', 'price you paid', 'from your Amazon orders or typed in')}${vrow('now', "today's Kindle price", "used until the price you paid is found")}${vrow('guess', 'guessed', `${fmtMoney(S.settings.defPrice)} each, from Settings`)}${vg.zero[0] ? `<li><b>${fmtInt(vg.zero[0])}</b> free: $0</li>` : ''}</ul>Prices paid are read from about 40 orders per sync, so this gets more exact with every sync. Click a book's title to type in a price.</span>`;
+  const vtip = `<span class="tipbox" role="tooltip"><strong>How this adds up</strong> across your ${fmtInt(n)} counted books:<ul>${vrow('paid', 'price you paid', 'from your Amazon orders or typed in')}${vrow('now', "today's Kindle price", "used until the price you paid is found")}${vrow('guess', 'guessed', `${fmtMoney(S.settings.defPrice)} each, from Settings`)}${vg.zero[0] ? `<li><b>${fmtInt(vg.zero[0])}</b> free: $0</li>` : ''}</ul>Prices paid are read from up to 150 orders per sync, so this gets more exact with every sync. Click a book's title to type in a price.</span>`;
   $('#tValueSub').innerHTML = !S.showMoney ? 'Hidden' : `<span class="tip" tabindex="0">${[vg.paid[0] ? `${fmtInt(vg.paid[0])} paid` : '', vg.now[0] ? `${fmtInt(vg.now[0])} at today's price` : '', vg.guess[0] ? `${fmtInt(vg.guess[0])} guessed` : '', vg.zero[0] ? `${fmtInt(vg.zero[0])} free` : ''].filter(Boolean).join(' · ') || 'no books yet'}${vtip}</span>`;
   $('#revealHint').textContent = S.showMoney ? 'Click to hide' : 'Click to reveal';
   $('#revealValue').setAttribute('aria-pressed', S.showMoney);
@@ -1277,7 +1277,7 @@ window.addEventListener('message', e => {
   const d = e.data;
   if (!d || d.klc !== 1 || (e.origin && e.origin !== location.origin && location.origin !== 'null')) return;
   if (d.type === 'ready') { enableSync(); checkScriptVersion(d.version); }
-  else if (d.type === 'progress') syncProgress(d.msg);
+  else if (d.type === 'progress') { syncProgress(d.msg); if (bridgeWaiters) bridgeWaiters.poke(); }
   else if (d.type === 'binfoResult' && kpWaiters[d.id]) { const w = kpWaiters[d.id]; delete kpWaiters[d.id]; try { w(JSON.parse(d.data)); } catch { w(null); } }
   else if (d.type === 'result' && bridgeWaiters) { const w = bridgeWaiters; bridgeWaiters = null; try { w.resolve(JSON.parse(d.data)); } catch (err) { w.reject(err); } }
 });
@@ -1303,9 +1303,12 @@ function startSync() {
 }
 function bridgeSync(force, paid) {
   return new Promise((resolve, reject) => {
-    bridgeWaiters = {resolve, reject};
+    // Gives up only after 2 minutes with no word from the script; a long sync that keeps reporting progress is fine
+    let t = 0;
+    const poke = () => { clearTimeout(t); t = setTimeout(() => { if (bridgeWaiters) { bridgeWaiters = null; reject(new Error('The sync script stopped answering. Reload the page.')); } }, 120000); };
+    bridgeWaiters = {resolve: v => { clearTimeout(t); resolve(v); }, reject: e => { clearTimeout(t); reject(e); }, poke};
     postBridge({type: 'sync', force, paid});
-    setTimeout(() => { if (bridgeWaiters) { bridgeWaiters = null; reject(new Error('The sync script did not answer. Reload the page.')); } }, 180000);
+    poke();
   });
 }
 
@@ -1419,7 +1422,7 @@ async function lookupBookInfo() {
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '1.34';
+const LATEST_SCRIPT = '1.35';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 let scriptVer = '';
@@ -1433,6 +1436,7 @@ const lsSet1 = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.r
 
 // ---------- what's new (shown in Settings) ----------
 const CHANGES = [
+  ['1.35', ['Prices paid fill in about 4 times faster: up to 150 orders per sync, paced so Amazon doesn\'t object', 'Library value shows where every dollar comes from (hover the line under it)']],
   ['1.34', ['Step-by-step setup the first time you visit', 'Sync progress shows each step with a progress bar, and problems in plain English', 'Updates and what\'s new live in Settings; the page updates itself']],
   ['1.33', ['Import a file and Back up moved into Settings', 'No more console script']],
   ['1.32', ['Just-bought books lead the shelf when it is colored by genre']],
@@ -1539,6 +1543,7 @@ function cardResult(d, nGr, nK, dated, priced) {
   if (d.kErr && !nK) { stage('kindle', 'err', 'failed'); cardError('kindle', d.kErr); } else stage('kindle', 'ok', nb(nK, 'book'));
   if (d.oErr) { stage('owned', 'err', 'failed'); cardError('owned', d.oErr); } else stage('owned', dated ? 'ok' : 'skip', dated ? nb(dated, 'date') : 'none');
   if (d.pErr) { stage('prices', 'err', 'failed'); cardError('prices', d.pErr); } else stage('prices', 'ok', priced ? `${fmtInt(priced)} new` : 'up to date');
+  if (d.pPaused) cardError('prices', `Amazon asked us to slow down while reading your orders${priced ? `, after ${priced} prices` : ''}. The rest are read on your next sync.`, true);
   if (!nGr && !nK) { stage('details', 'skip', ''); return; }
   stage('details', 'run', 'starting…', 0);
 }
