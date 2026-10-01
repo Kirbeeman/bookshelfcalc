@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.35
+// @version      1.36
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -1731,7 +1731,7 @@ async function lookupBookInfo() {
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '1.35';
+const LATEST_SCRIPT = '1.36';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 let scriptVer = '';
@@ -1745,6 +1745,7 @@ const lsSet1 = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.r
 
 // ---------- what's new (shown in Settings) ----------
 const CHANGES = [
+  ['1.36', ['The Sync box folds to a single line with an arrow; it folds itself when a sync finishes cleanly']],
   ['1.35', ['Prices paid fill in about 4 times faster: up to 150 orders per sync, paced so Amazon doesn\'t object', 'Library value shows where every dollar comes from (hover the line under it)']],
   ['1.34', ['Step-by-step setup the first time you visit', 'Sync progress shows each step with a progress bar, and problems in plain English', 'Updates and what\'s new live in Settings; the page updates itself']],
   ['1.33', ['Import a file and Back up moved into Settings', 'No more console script']],
@@ -1804,24 +1805,31 @@ let cardErrs = [], cardTimer = 0;
 function card() {
   let c = $('#syncCard');
   if (c) return c;
-  c = document.createElement('section'); c.className = 'card synccard'; c.id = 'syncCard'; c.hidden = true; c.setAttribute('aria-live', 'polite');
-  c.innerHTML = `<div class="row" style="justify-content:space-between"><h3 id="scTitle">Syncing your library</h3><span class="muted sc-note" id="scNote">You can keep using the page</span></div>
+  c = document.createElement('section'); c.className = 'card synccard'; c.id = 'syncCard'; c.hidden = true;
+  c.innerHTML = `<button type="button" class="schead" id="scHead" aria-expanded="true" aria-controls="scBody"><span class="chev" aria-hidden="true"></span><h3>Sync</h3><span class="scsum" id="scSum" aria-live="polite"></span></button>
+    <div id="scBody"><p class="muted sc-note" id="scNote">You can keep using the page while this runs.</p>
     <div>${STAGES.map(([k, l]) => `<div class="stage" id="st-${k}" data-s="wait"><span class="ic"></span><span>${l}</span><div class="pbar"><i></i></div><span class="r"></span></div>`).join('')}</div>
-    <div id="scErrs"></div>`;
+    <div id="scErrs"></div></div>`;
   document.querySelector('header.top').after(c);
+  $('#scHead').onclick = () => { const col = !c.classList.contains('collapsed'); setCollapsed(col); lsSet1('klc-sync-collapsed', col ? '1' : ''); };
+  setCollapsed(lsFlag('klc-sync-collapsed'));
   return c;
 }
+// Folded, the box is one line: "Sync" plus where it is (running step, last sync time, or a problem)
+function setCollapsed(col) { const c = $('#syncCard'); c.classList.toggle('collapsed', col); $('#scHead').setAttribute('aria-expanded', !col); $('#scBody').hidden = col; }
+const sum = (txt, kind) => { const e = $('#scSum'); e.textContent = txt; e.dataset.k = kind || ''; };
 function stage(k, st, txt, frac) {
   const r = card().querySelector('#st-' + k); if (!r) return;
   r.dataset.s = st;
   r.querySelector('.ic').textContent = {ok: '✓', run: '●', err: '!', skip: '–', wait: ''}[st] || '';
   r.querySelector('.r').textContent = txt || '';
   r.querySelector('.pbar i').style.width = (st === 'ok' || st === 'skip' ? 100 : Math.round(Math.max(0, Math.min(1, frac || 0)) * 100)) + '%';
+  if (st === 'run') sum(`${STAGES.find(x => x[0] === k)[1]}${txt ? ' · ' + txt : ''}`, 'run');
 }
 function cardStart() {
   clearTimeout(cardTimer); cardErrs = [];
-  const c = card(); c.hidden = false; $('#sync').hidden = true; $('#scErrs').innerHTML = ''; $('#scTitle').textContent = 'Syncing your library'; $('#scNote').textContent = 'You can keep using the page';
-  STAGES.forEach(([k]) => stage(k, 'wait'));
+  const c = card(); c.hidden = false; $('#sync').hidden = true; $('#scErrs').innerHTML = ''; $('#scNote').hidden = false;
+  STAGES.forEach(([k]) => stage(k, 'wait')); sum('Starting…', 'run');
 }
 const before = k => { const i = STAGES.findIndex(x => x[0] === k); STAGES.slice(0, i).forEach(([p]) => { const r = $('#st-' + p); if (r && r.dataset.s === 'run') stage(p, 'ok', r.querySelector('.r').textContent); }); };
 function syncProgress(msg) {
@@ -1843,9 +1851,9 @@ function cardError(key, err, plain) {
   const src = {goodreads: 'Goodreads', kindle: 'Amazon', owned: 'Amazon', prices: 'Amazon', details: 'Amazon', sync: 'The sync'}[key] || 'Sync';
   cardErrs.push(plain ? {html: esc(err)} : friendly(src, err));
   $('#scErrs').innerHTML = cardErrs.map(e => `<div class="warnline"><span>${e.html}</span></div>`).join('') +
-    `<div class="row" style="justify-content:flex-end"><button type="button" class="btn" id="scRetry">Retry</button><button type="button" class="btn" id="scClose">Hide</button></div>`;
+    `<div class="row" style="justify-content:flex-end"><button type="button" class="btn" id="scRetry">Retry</button></div>`;
   $('#scRetry').onclick = () => runSync(true);
-  $('#scClose').onclick = () => { card().hidden = true; $('#sync').hidden = false; };
+  if (!syncing && !kpRunning) sum(`Finished with ${cardErrs.length === 1 ? 'a problem' : cardErrs.length + ' problems'} · click to see`, 'err');
 }
 function cardResult(d, nGr, nK, dated, priced) {
   if (d.grErr) { stage('goodreads', 'err', 'not this time'); cardError('goodreads', d.grErr); } else stage('goodreads', nGr ? 'ok' : 'skip', nGr ? nb(nGr, 'book') : 'not linked');
@@ -1858,9 +1866,11 @@ function cardResult(d, nGr, nK, dated, priced) {
 }
 function cardMaybeDone() {
   const c = $('#syncCard'); if (!c || c.hidden) return;
-  if (cardErrs.length) { $('#scTitle').textContent = 'Sync finished with a problem'; $('#scNote').textContent = ''; return; }
-  $('#scTitle').textContent = 'Synced ✓'; $('#scNote').textContent = '';
-  cardTimer = setTimeout(() => { c.hidden = true; $('#sync').hidden = false; }, 4000);
+  $('#scNote').hidden = true;
+  const when = new Date().toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
+  if (cardErrs.length) { sum(`Finished ${when} with ${cardErrs.length === 1 ? 'a problem' : cardErrs.length + ' problems'} · click to see`, 'err'); return; }
+  sum(`✓ Synced ${when}`, 'ok');
+  cardTimer = setTimeout(() => setCollapsed(true), 1500); // all good: fold to one line by itself
 }
 
 // ---------- first-visit setup walkthrough ----------
@@ -1941,7 +1951,12 @@ function wizGo(step) {
   st.textContent = `
 #btnSettings.dot{position:relative}#btnSettings.dot::after{content:"";position:absolute;top:-3px;right:-3px;width:9px;height:9px;border-radius:50%;background:var(--shame);border:2px solid var(--bg)}
 .news summary{cursor:pointer;font-size:.85rem;font-weight:600}.news p{margin:8px 0 2px;font-size:.82rem}.news ul{margin:0;padding-left:18px;font-size:.82rem}
-.synccard{margin-top:14px;gap:8px}.synccard .sc-note{font-size:.8rem}
+.synccard{margin-top:14px;gap:8px;padding:12px 18px}.synccard .sc-note{font-size:.8rem;margin:0 0 4px}
+.schead{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:10px;width:100%;cursor:pointer;min-height:28px;border-radius:6px}.schead:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
+.schead h3{margin:0}.chev{width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid var(--muted);transition:transform .15s}.collapsed .chev{transform:rotate(-90deg)}
+.scsum{margin-left:auto;font-family:var(--mono);font-size:.76rem;color:var(--muted);text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.scsum[data-k=ok]{color:var(--ok)}.scsum[data-k=err]{color:var(--shame)}.scsum[data-k=run]{color:var(--accent)}
+.synccard.collapsed{padding-block:8px}
 .stage{display:grid;grid-template-columns:18px minmax(110px,150px) 1fr minmax(90px,auto);gap:10px;align-items:center;font-size:.86rem;padding:4px 0}
 .stage .ic{font-family:var(--mono);text-align:center;color:var(--accent)}.stage[data-s=ok] .ic{color:var(--ok)}.stage[data-s=err] .ic{color:var(--shame)}
 .stage[data-s=wait],.stage[data-s=skip]{color:var(--muted)}
