@@ -40,7 +40,9 @@ Your books are stored only in your own browser. Nothing is sent to a server, and
 
 Statuses are **Unread**, **Reading**, **Finished** and **Gave up**. Only **Unread** books go on the Shelf of Shame.
 
-Books bought in the **last 5 days** are outlined in gold and placed first on the Shelf of Shame, with a *new* tag in the library table. Kindle doesn't report purchase dates, so a Kindle book that shows up in a sync after your first import is dated the day it first appeared. Dates from the Kindle for PC app file or an Amazon orders file are exact.
+Books bought in the **last 5 days** are outlined in gold and placed first on the Shelf of Shame, with a *new* tag in the library table. Kindle doesn't report purchase dates, so a Kindle book that shows up in a sync after your first import is dated the day it first appeared. Dates from the Kindle for PC app file or an Amazon orders file are exact. To mark a book as just bought yourself, click its title and set **Added on** to the purchase date.
+
+**Spine color.** Above the bookcase, switch **Spine color** between **Default** (mixed book-cloth colors) and **By genre**. In genre mode each spine is colored by genre, with a key under the shelf showing how many unread books are in each. Genres are looked up from Google Books the first time you switch it on (about 4 books a second, unread books first) and saved, so it only happens once per book. Google Books limits free lookups per day; if a big library hits the limit, the rest continue next time. To fix a wrong genre, click the book's title and pick one from **Genre**. Genres: Mystery & Thriller, Romance, Sci-Fi & Fantasy, Horror, General Fiction, History & Biography, Self-help & Health, Cooking & Food, Humor, Kids & YA, Comics, Other Nonfiction.
 
 ---
 

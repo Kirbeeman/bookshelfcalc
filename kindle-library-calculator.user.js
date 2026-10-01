@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.4
+// @version      1.8
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -17,6 +17,7 @@
 // @grant        GM_addStyle
 // @grant        GM_xmlhttpRequest
 // @connect      goodreads.com
+// @connect      googleapis.com
 // @connect      amazon.com
 // @connect      amazon.co.uk
 // @connect      amazon.ca
@@ -118,6 +119,13 @@ async function fetchKindle(progress) {
   return items;
 }
 const KLC_CORE = {
+  // JSON fetch that works on any page (used for genre lookups from Google Books)
+  async getJSON(url) {
+    const r = await gmGet(url);
+    if (r.status === 429) { const e = new Error('limit'); e.code = 429; throw e; }
+    if (r.status !== 200) throw new Error('HTTP ' + r.status);
+    return JSON.parse(r.text);
+  },
   // force = the Sync now button: always refresh the Kindle list. Otherwise reuse it for 6 hours.
   async sync(force, progress = () => {}) {
     const out = {goodreads: [], grErr: '', kindle: null, kErr: ''};
@@ -223,8 +231,9 @@ document.body.innerHTML = `<div class="wrap">
 
   <section class="pile" aria-labelledby="pileH">
     <div>
-      <div class="pile-head"><h3>Shelf of Shame</h3><h2 class="pile-title" id="pileH">0 unread books</h2><div class="newnote" id="pileNew" hidden></div></div>
+      <div class="pile-head"><h3>Shelf of Shame</h3><h2 class="pile-title" id="pileH">0 unread books</h2><div class="shelfbar"><div class="newnote" id="pileNew" hidden></div><span class="seglabel">Spine color <span class="seg" role="group" aria-label="Spine color"><button type="button" id="spDefault" aria-pressed="true">Default</button><button type="button" id="spGenre" aria-pressed="false">By genre</button></span></span></div><span class="genrestatus" id="genreStatus" hidden></span></div>
       <div id="stack"></div>
+      <div class="genrelegend" id="genreLegend" hidden></div>
     </div>
     <div class="pile-facts">
       <p class="verdict" id="verdict"></p>
@@ -331,6 +340,7 @@ document.body.innerHTML = `<div class="wrap">
       <label>Price paid<input type="number" id="ePrice" min="0" step="0.01" placeholder="unknown"></label>
       <label>Added on<input type="date" id="eDate"></label>
       <label>How you got it<select id="eSource"><option value="purchase">Bought</option><option value="free">Free</option><option value="ku">Kindle Unlimited</option><option value="prime">Prime Reading</option><option value="sample">Sample</option><option value="other">Borrowed / other</option></select></label>
+      <label>Genre<select id="eGenre"></select></label>
       <label>Rating<select id="eRating"><option value="0">No rating</option><option value="1">★</option><option value="2">★★</option><option value="3">★★★</option><option value="4">★★★★</option><option value="5">★★★★★</option></select></label>
     </div>
     <div class="dlg-foot">
@@ -370,6 +380,7 @@ GM_addStyle(`
   --accent:#27408b; --accent-soft:#dde3f4; --shame:#a3322a; --shame-soft:#f3dedb;
   --ok:#2f6b45; --warn:#9a6a12;
   --cloth-1:#6b3a3a; --cloth-2:#2e4a5c; --cloth-3:#5a5a2e; --cloth-4:#3b3551; --cloth-5:#7a5230; --cloth-6:#2f4f3f; --spine-ink:#f2efe6; --wood:#8a5a36; --wood-dark:#5e3b22; --wood-back:#d9cbb8;
+  --g-mystery:#2f3e5c; --g-romance:#a3445f; --g-scifi:#2f6f86; --g-horror:#5b2330; --g-fiction:#7a6440; --g-history:#7a4a2a; --g-selfhelp:#3f6b4f; --g-cooking:#8a7a2e; --g-humor:#b8692a; --g-kids:#6f5aa0; --g-comics:#b0472f; --g-nonfiction:#4f5d63; --g-unknown:#8d8a84;
   --display:"Literata", Georgia, "Times New Roman", serif;
   --body:"Literata", Georgia, serif;
   --mono:"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -379,12 +390,14 @@ GM_addStyle(`
   --accent:#9fb0ff; --accent-soft:#232c4a; --shame:#f08a7e; --shame-soft:#3a2220;
   --ok:#7fc89a; --warn:#e2b458;
   --cloth-1:#8a4a4a; --cloth-2:#3d6278; --cloth-3:#77773c; --cloth-4:#524a70; --cloth-5:#946642; --cloth-6:#3e6853; --spine-ink:#f6f3ea; --wood:#6b4529; --wood-dark:#40291a; --wood-back:#231c17;
+  --g-mystery:#41558a; --g-romance:#b8577a; --g-scifi:#3a8aa6; --g-horror:#7a3040; --g-fiction:#93794c; --g-history:#95603a; --g-selfhelp:#4f8a63; --g-cooking:#a09033; --g-humor:#c97a35; --g-kids:#8670bd; --g-comics:#c45a3e; --g-nonfiction:#64757d; --g-unknown:#6f6c67;
   color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#121517; --paper:#1a1e21; --ink:#e7e8e3; --muted:#9aa29c; --rule:#2d3336;
   --accent:#9fb0ff; --accent-soft:#232c4a; --shame:#f08a7e; --shame-soft:#3a2220;
   --ok:#7fc89a; --warn:#e2b458;
   --cloth-1:#8a4a4a; --cloth-2:#3d6278; --cloth-3:#77773c; --cloth-4:#524a70; --cloth-5:#946642; --cloth-6:#3e6853; --spine-ink:#f6f3ea; --wood:#6b4529; --wood-dark:#40291a; --wood-back:#231c17;
+  --g-mystery:#41558a; --g-romance:#b8577a; --g-scifi:#3a8aa6; --g-horror:#7a3040; --g-fiction:#93794c; --g-history:#95603a; --g-selfhelp:#4f8a63; --g-cooking:#a09033; --g-humor:#c97a35; --g-kids:#8670bd; --g-comics:#c45a3e; --g-nonfiction:#64757d; --g-unknown:#6f6c67;
   color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -431,6 +444,15 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background
 /* pile */
 .pile{display:grid;grid-template-columns:1fr;gap:24px;background:var(--paper);border:1px solid var(--rule);border-radius:10px;padding:24px}
 .pile-head{display:flex;flex-direction:column;gap:6px}
+.shelfbar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:6px;overflow:hidden;font-size:.8rem}
+.seg button{background:var(--paper);border:0;padding:5px 12px;font-weight:600;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.seglabel{font-size:.8rem;color:var(--muted);display:inline-flex;gap:8px;align-items:center}
+.genrelegend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.8rem;margin-top:10px}
+.genrelegend span{display:inline-flex;gap:6px;align-items:center}
+.genrelegend i{width:10px;height:14px;border-radius:2px;display:inline-block}
+.genrestatus{font-size:.78rem;color:var(--muted);font-family:var(--mono)}
 .newnote{font-size:.88rem;display:flex;align-items:center;gap:8px}
 .newnote i{width:12px;height:12px;border-radius:2px;outline:2px solid var(--warn);outline-offset:1px;background:var(--cloth-2);display:inline-block}
 .spine.new{outline:3px solid var(--warn);outline-offset:1px;position:relative;z-index:1}
@@ -438,8 +460,10 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background
 .pile-title{font-size:2rem;color:var(--shame)}
 .bookcase{--row:176px;background:var(--wood-back);border:10px solid var(--wood);border-top-width:12px;border-radius:4px;padding:0 10px;font-size:0;line-height:var(--row);min-height:calc(var(--row) + 12px);
   background-image:repeating-linear-gradient(to bottom,transparent 0,transparent calc(var(--row) - 12px),var(--wood) calc(var(--row) - 12px),var(--wood) calc(var(--row) - 3px),var(--wood-dark) calc(var(--row) - 3px),var(--wood-dark) var(--row));margin-top:12px}
-.spine{display:inline-block;vertical-align:bottom;margin-bottom:12px;height:var(--h);width:var(--w);background:var(--c);color:var(--spine-ink);border-radius:2px 2px 1px 1px;writing-mode:vertical-rl;text-orientation:mixed;font-size:.68rem;font-family:var(--mono);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:10px 0;text-align:left;
+.spine{display:inline-flex;align-items:center;justify-content:center;vertical-align:bottom;margin-bottom:12px;height:var(--h);width:var(--w);background:var(--c);color:var(--spine-ink);border-radius:2px 2px 1px 1px;writing-mode:vertical-rl;text-orientation:mixed;font-size:.68rem;font-family:var(--mono);line-height:1.2;white-space:nowrap;overflow:hidden;padding:10px 0;
   box-shadow:inset 0 9px 0 -6px rgba(255,255,255,.22),inset 0 -9px 0 -6px rgba(255,255,255,.22),inset 3px 0 0 rgba(255,255,255,.08),inset -3px 0 0 rgba(0,0,0,.2);transform:rotate(var(--r));transform-origin:bottom right}
+.spine b{font-weight:inherit;display:block;min-inline-size:0;max-inline-size:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.spine.lean{margin-left:12px}
 .more{font-family:var(--mono);font-size:.78rem;color:var(--muted);margin-top:8px;text-align:right}
 .pile-empty{padding:40px 0;text-align:center;color:var(--ok);font-weight:600;font-size:.95rem;line-height:1.5}
 .pile-facts{display:flex;flex-direction:column;gap:18px;min-width:0}
@@ -569,6 +593,10 @@ const DEMO = [
   ['Walden','Henry David Thoreau',352,0.99,'2026-06-23','unread',0,'purchase'],
   ['Emma','Jane Austen',474,0,'2026-08-30','reading',12,'sample'],
 ].map((r,i) => ({id:'demo'+i, title:r[0], author:r[1], pages:r[2], price:r[3], date:r[4], status:r[5], progress:r[6], source:r[7], rating:r[8]||0, asin:''}));
+// Two example books count as just bought, so the example shows the "bought in the last 5 days" highlight
+{ const G = {'Moby-Dick':'fiction','Middlemarch':'fiction','War and Peace':'history','Pride and Prejudice':'romance','Frankenstein':'horror','The Count of Monte Cristo':'mystery','Crime and Punishment':'mystery','The Brothers Karamazov':'mystery','Great Expectations':'fiction','Bleak House':'fiction','Dracula':'horror','Anna Karenina':'romance','Jane Eyre':'romance','The Odyssey':'scifi','Don Quixote':'humor','The Picture of Dorian Gray':'horror','Ulysses':'fiction','Little Women':'kids','Walden':'nonfiction','Emma':'romance'};
+  DEMO.forEach(b => { b.genre = G[b.title]; b.genreSrc = 'manual'; }); }
+{ const daysAgo = n => new Date(Date.now() - n * 864e5).toISOString().slice(0,10); DEMO[17].date = daysAgo(3); DEMO[18].date = daysAgo(1); }
 
 const DEFAULTS = {defPages:320, defPrice:7.99, minPerPage:1.1, pagesPerDay:30, currency:'USD', doneAt:90, borrowed:false, samples:false, grAll:false};
 const S = {showMoney:false, books: DEMO.map(b => ({...b})), settings:{...DEFAULTS}, demo:true, mode:'demo', filter:'all', q:'', sort:{k:'date', dir:-1}, limit:150};
@@ -688,7 +716,68 @@ function statusFromProgress(p) {
 }
 
 // ---------- rendering ----------
-function renderAll() { setStore(); renderStats(); renderShelf(); }
+// ---------- genres ----------
+const GENRES = {mystery:'Mystery & Thriller', romance:'Romance', scifi:'Sci-Fi & Fantasy', horror:'Horror', fiction:'General Fiction', history:'History & Biography', selfhelp:'Self-help & Health', cooking:'Cooking & Food', humor:'Humor', kids:'Kids & YA', comics:'Comics', nonfiction:'Other Nonfiction', unknown:'Unknown'};
+function genreFromCategories(cats) {
+  const c = cats.join(' | ').toLowerCase();
+  if (!c) return null;
+  const rules = [
+    ['comics', /comics|graphic novel|manga/], ['kids', /juvenile|young adult/], ['cooking', /cooking|recipes|baking|food|beverages|cocktail/],
+    ['history', /true crime|biography|autobiography|memoir|history/], ['horror', /horror|ghost|paranormal/], ['romance', /romance/],
+    ['scifi', /science fiction|fantasy|dystopian|magic/], ['mystery', /mystery|thriller|suspense|crime|detective|noir/],
+    ['humor', /humor|comed/], ['selfhelp', /self-help|health|fitness|psychology|body, mind|religion|spiritual|business|family|relationships/],
+    ['fiction', /fiction/],
+  ];
+  for (const [g, re] of rules) if (re.test(c)) return g;
+  return 'nonfiction';
+}
+const getJSON = async url => {
+  if (typeof KLC_CORE !== 'undefined' && KLC_CORE.getJSON) return KLC_CORE.getJSON(url);
+  const r = await fetch(url);
+  if (r.status === 429) { const e = new Error('limit'); e.code = 429; throw e; }
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+};
+let genreRunning = false;
+function genreStatus(msg) { const el = $('#genreStatus'); el.hidden = !msg; el.textContent = msg || ''; }
+async function lookupGenres() {
+  if (genreRunning || S.settings.spineMode !== 'genre' || S.demo) return;
+  const todo = S.books.filter(b => !b.genre && !b.genreTried).sort((a, b) => (a.status === 'unread' ? 0 : 1) - (b.status === 'unread' ? 0 : 1));
+  if (!todo.length) { genreStatus(''); return; }
+  genreRunning = true;
+  let done = 0;
+  try {
+    for (const b of todo) {
+      if (S.settings.spineMode !== 'genre') break;
+      genreStatus(`Looking up genres… ${done} of ${todo.length}`);
+      const t = String(b.title).split(/[:(\[]/)[0].trim(), a = surname(b.author);
+      const q = b.isbn ? `isbn:${b.isbn}` : `intitle:${t}` + (a ? `+inauthor:${a}` : '');
+      try {
+        const j = await getJSON(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q).replace(/%2B/g, '+')}&maxResults=3&printType=books&fields=items(volumeInfo/categories)`);
+        const cats = (j.items || []).flatMap(i => i.volumeInfo?.categories || []);
+        b.genre = genreFromCategories(cats) || 'unknown';
+      } catch (e) {
+        if (e.code === 429 || /limit|429/.test(e.message)) { genreStatus(`Google Books daily limit reached after ${done} books. The rest continue next time.`); return; }
+        if (!done) { genreStatus("Genre lookup isn't available here. Click a book's title to set its genre."); return; }
+        b.genreTried = true;
+      }
+      done++;
+      if (done % 15 === 0) { renderStats(); scheduleSave(); }
+      await new Promise(r => setTimeout(r, 250));
+    }
+    genreStatus('');
+  } finally { genreRunning = false; renderStats(); scheduleSave(); }
+}
+function setSpineMode(m) {
+  S.settings.spineMode = m;
+  $('#spDefault').setAttribute('aria-pressed', m !== 'genre'); $('#spGenre').setAttribute('aria-pressed', m === 'genre');
+  if (m !== 'genre') genreStatus('');
+  renderStats(); scheduleSave(); lookupGenres();
+}
+$('#spDefault').onclick = () => setSpineMode('default');
+$('#spGenre').onclick = () => setSpineMode('genre');
+
+function renderAll() { setStore(); $('#spDefault').setAttribute('aria-pressed', S.settings.spineMode !== 'genre'); $('#spGenre').setAttribute('aria-pressed', S.settings.spineMode === 'genre'); renderStats(); renderShelf(); setTimeout(lookupGenres, 0); }
 
 function renderStats() {
   const bs = S.books.filter(counted);
@@ -737,8 +826,15 @@ function renderStats() {
       const ht = 112 + (h % 46);
       const r = (h % 23 === 0 && i > 0) ? -4 : 0;
       const nw = isNew(b);
-      return `<span class="spine${nw ? ' new' : ''}" style="--h:${ht}px;--w:${w}px;--r:${nw ? 0 : r}deg;--c:${cloth(h)}" title="${esc(b.title)} — ${esc(b.author)} · ${p} pages${nw ? ' · bought ' + b.date : ''}">${esc(b.title)}</span>`;
+      const lean = !nw && r !== 0;
+      return `<span class="spine${nw ? ' new' : ''}${lean ? ' lean' : ''}" style="--h:${ht}px;--w:${w}px;--r:${lean ? r : 0}deg;--c:${S.settings.spineMode === 'genre' ? `var(--g-${GENRES[b.genre] ? b.genre : 'unknown'})` : cloth(h)}" title="${esc(b.title)} — ${esc(b.author)} · ${p} pages${nw ? ' · bought ' + b.date : ''}"><b>${esc(b.title)}</b></span>`;
     }).join('') + '</div>';
+    const gl = $('#genreLegend');
+    if (S.settings.spineMode === 'genre') {
+      const cnt = {}; pile.forEach(b => { const g = GENRES[b.genre] ? b.genre : 'unknown'; cnt[g] = (cnt[g] || 0) + 1; });
+      gl.innerHTML = Object.keys(GENRES).filter(g => cnt[g]).map(g => `<span><i style="background:var(--g-${g})"></i>${GENRES[g]} <span class="num muted">${cnt[g]}</span></span>`).join('');
+      gl.hidden = false;
+    } else gl.hidden = true;
     if (pile.length > shown.length) html += `<div class="more">+ ${fmtInt(pile.length - shown.length)} more that didn't fit on the shelf</div>`;
     stack.innerHTML = html;
   }
@@ -750,7 +846,7 @@ function renderStats() {
     $('#fClear').textContent = d.toLocaleDateString(undefined, {month:'short', year:'numeric'});
     $('#fClearL').textContent = `everything read at ${S.settings.pagesPerDay} pages a day (${days > 730 ? (days/365).toFixed(1) + ' years' : fmtInt(days) + ' days'}), if you stop buying`;
   } else { $('#fClear').textContent = 'Done'; $('#fClearL').textContent = 'nothing left to read'; }
-  const dated = pile.filter(b => b.date).sort((a,b) => a.date.localeCompare(b.date));
+  const dated = pile.filter(b => b.date && !b.dateEst).sort((a,b) => a.date.localeCompare(b.date));
   if (dated.length) {
     const o = dated[0], y = yearsAgo(o.date);
     $('#fOldest').textContent = y >= 1 ? y.toFixed(1) + ' yrs' : Math.round(y * 12) + ' mo';
@@ -889,6 +985,8 @@ function openEdit(id) {
   $('#eStatus').value = b.status; $('#eProgress').value = Math.round(b.progress || 0);
   $('#ePages').value = b.pages || ''; $('#ePrice').value = b.price ?? ''; $('#eDate').value = b.date || '';
   $('#eSource').value = b.source || 'purchase'; $('#eRating').value = b.rating || 0;
+  $('#eGenre').innerHTML = '<option value="">Look up automatically</option>' + Object.entries(GENRES).filter(([k]) => k !== 'unknown').map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  $('#eGenre').value = b.genreSrc === 'manual' ? b.genre : '';
   $('#eDelete').hidden = !editing; delArmed = false; $('#eConfirm').textContent = '';
   $('#dlgEdit').showModal();
 }
@@ -902,6 +1000,7 @@ $('#editForm').addEventListener('submit', e => {
     status: $('#eStatus').value, progress: Math.max(0, Math.min(100, +$('#eProgress').value || 0)),
     pages: num($('#ePages').value), price: num($('#ePrice').value), date: $('#eDate').value || '',
     source: $('#eSource').value, rating: +$('#eRating').value, lock: true,
+    ...($('#eGenre').value ? {genre: $('#eGenre').value, genreSrc: 'manual'} : (editing && editing.genreSrc === 'manual' ? {genre: '', genreSrc: ''} : {})),
   };
   if (!data.title) return;
   if (editing) Object.assign(editing, data);
@@ -930,7 +1029,7 @@ $('#setForm').addEventListener('submit', e => {
   S.settings = {
     defPages: Math.max(1, +$('#sPages').value || DEFAULTS.defPages), defPrice: Math.max(0, +$('#sPrice').value || 0),
     minPerPage: Math.max(0.2, +$('#sMin').value || DEFAULTS.minPerPage), pagesPerDay: Math.max(1, +$('#sDay').value || DEFAULTS.pagesPerDay),
-    currency: $('#sCur').value, doneAt: Math.min(100, Math.max(50, +$('#sDone').value || 90)),
+    currency: $('#sCur').value, spineMode: S.settings.spineMode, doneAt: Math.min(100, Math.max(50, +$('#sDone').value || 90)),
     borrowed: $('#sBorrowed').checked, samples: $('#sSamples').checked, grAll: $('#sGrAll').checked,
   };
   $('#dlgSettings').close(); renderAll(); scheduleSave(); toast('Settings saved');
