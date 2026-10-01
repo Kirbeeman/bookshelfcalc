@@ -185,7 +185,7 @@ Books that don't match any of these are treated as separate books. If a book you
 
 ## Settings
 
-**Theme** (top of Settings): **Default** follows your device's light or dark mode, **Cozy** is a warm, candle-lit library look, **Zon** is a bright storefront look, and **Light** stays light even when your device is dark. It changes right away and is saved with your library.
+**Theme** (top of Settings): **Default** follows your device's light or dark mode, **Cozy** is a warm, candle-lit library look, **Zon** is an online-bookstore look, **Halloween** is purple, slime green and pumpkin orange with a moon and bats, and **Light** stays light even when your device is dark. It changes right away and is saved with your library.
 
 Click **Settings** to change:
 

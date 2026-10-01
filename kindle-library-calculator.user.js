@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.39
+// @version      1.40
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -531,27 +531,67 @@ GM_addStyle(`
 :root[data-theme="cozy"] .bookcase{box-shadow:0 0 60px rgba(255,160,70,.12), inset 0 18px 30px rgba(0,0,0,.45)}
 :root[data-theme="cozy"] .btn.primary{background:var(--accent);color:#1c1209;border-color:var(--accent)}
 :root[data-theme="cozy"] header.top{background:rgba(22,16,11,.92);backdrop-filter:blur(6px)}
-/* Zon: a clean, bright storefront look. White pages, a near-black header bar, yellow buttons, teal links. */
+/* Zon: an online-bookstore look. Navy header with a darker strip under it, white boxes on a gray page,
+   yellow pill buttons, teal links, orange stars and highlights, red prices, plain sans-serif type everywhere. */
 :root[data-theme="zon"]{
-  --bg:#ffffff; --paper:#ffffff; --ink:#0f1111; --muted:#565959; --rule:#d5d9d9;
+  --bg:#e3e6e6; --paper:#ffffff; --ink:#0f1111; --muted:#565959; --rule:#d5d9d9;
   --accent:#007185; --accent-soft:#e6f2f4; --shame:#b12704; --shame-soft:#fbeae5;
-  --ok:#2d7d32; --warn:#c45500;
-  --wood:#9a6b45; --wood-dark:#6b4528; --wood-back:#efe7dc;
-  --display:Arial, "Helvetica Neue", Helvetica, sans-serif; --body:Arial, "Helvetica Neue", Helvetica, sans-serif;
+  --ok:#007600; --warn:#de7921;
+  --wood:#a5774f; --wood-dark:#6e4a2e; --wood-back:#f3ece2;
+  --display:Arial, "Helvetica Neue", Helvetica, sans-serif; --body:Arial, "Helvetica Neue", Helvetica, sans-serif; --mono:Arial, "Helvetica Neue", Helvetica, sans-serif;
   color-scheme:light}
-:root[data-theme="zon"] body{background:#eaeded}
-:root[data-theme="zon"] header.top{background:#131921;color:#fff;border-bottom:0;box-shadow:0 0 0 100vmax #131921;clip-path:inset(0 -100vmax)}
-:root[data-theme="zon"] header.top .store{color:#ccc}
-:root[data-theme="zon"] header.top .btn{background:#fff;color:#0f1111;border-color:#fff}
-:root[data-theme="zon"] .btn{border-radius:8px;box-shadow:0 2px 5px rgba(213,217,217,.5)}
-:root[data-theme="zon"] .btn.primary,:root[data-theme="zon"] header.top .btn.primary{background:#ffd814;border-color:#fcd200;color:#0f1111;border-radius:20px}
-:root[data-theme="zon"] .card,:root[data-theme="zon"] .tiles{border-radius:8px}
-:root[data-theme="zon"] h1{font-weight:700}
-:root[data-theme="zon"] a{color:var(--accent)}
+:root[data-theme="zon"] body{font-size:14px;line-height:1.4}
+:root[data-theme="zon"] .num{font-variant-numeric:tabular-nums}
+:root[data-theme="zon"] header.top{background:#131921;color:#fff;border-bottom:0;padding-block:10px;box-shadow:0 0 0 100vmax #131921;clip-path:inset(0 -100vmax)}
+:root[data-theme="zon"] header.top h1{font-size:1.45rem;font-weight:700;letter-spacing:-.01em}
+:root[data-theme="zon"] header.top .store,:root[data-theme="zon"] header.top a{color:#ccc}
+:root[data-theme="zon"] header.top .btn{background:transparent;color:#fff;border:1px solid transparent;box-shadow:none;border-radius:2px;font-weight:700}
+:root[data-theme="zon"] header.top .btn:hover{border-color:#fff}
+:root[data-theme="zon"] header.top .btn.primary{background:#ffd814;color:#0f1111;border-color:#fcd200;border-radius:100px}
+/* the Sync line becomes the second, lighter navy strip under the header */
+:root[data-theme="zon"] .card.synccard{margin-top:-28px;background:#232f3e;color:#fff;border:0;border-radius:0;box-shadow:0 0 0 100vmax #232f3e;clip-path:inset(0 -100vmax);padding-block:6px}
+:root[data-theme="zon"] .synccard h3,:root[data-theme="zon"] .synccard .chev{color:#fff;border-top-color:#fff}
+:root[data-theme="zon"] .synccard .scsum{color:#ddd}:root[data-theme="zon"] .synccard .scsum[data-k=ok]{color:#7fda8b}:root[data-theme="zon"] .synccard .scsum[data-k=err]{color:#ffb4a2}
+:root[data-theme="zon"] .synccard .stage,:root[data-theme="zon"] .synccard .sc-note,:root[data-theme="zon"] .synccard .stage .r{color:#ddd}:root[data-theme="zon"] .synccard .pbar{background:#3a4553}
+:root[data-theme="zon"] h3{font-family:var(--body);text-transform:none;letter-spacing:0;font-size:1rem;font-weight:700;color:var(--ink)}
+:root[data-theme="zon"] h2{font-weight:700}
+:root[data-theme="zon"] .pile-title{font-weight:400;font-size:1.75rem}
+:root[data-theme="zon"] .tile .big{font-weight:400;font-size:1.75rem}
+:root[data-theme="zon"] .card,:root[data-theme="zon"] .tiles{border:0;border-radius:4px;box-shadow:0 1px 2px rgba(15,17,17,.12)}
+:root[data-theme="zon"] .tiles{background:var(--rule)}
+:root[data-theme="zon"] .btn{border-radius:100px;border:1px solid #d5d9d9;background:#fff;box-shadow:0 2px 5px rgba(213,217,217,.5);font-weight:400;padding:6px 16px}
+:root[data-theme="zon"] .btn:hover{background:#f7fafa}
+:root[data-theme="zon"] .btn.primary{background:#ffd814;border-color:#fcd200;color:#0f1111}
+:root[data-theme="zon"] .btn.primary:hover{background:#f7ca00;opacity:1}
+:root[data-theme="zon"] .seg{border-radius:100px;border-color:#d5d9d9}:root[data-theme="zon"] .seg button[aria-pressed="true"]{background:#ffa41c;color:#0f1111}
+:root[data-theme="zon"] input[type=search]{border:1px solid #888c8c;border-radius:8px;box-shadow:0 1px 2px rgba(15,17,17,.15) inset}
+:root[data-theme="zon"] input:focus,:root[data-theme="zon"] select:focus{outline:none;border-color:#e77600;box-shadow:0 0 3px 2px rgba(228,121,17,.5)}
+:root[data-theme="zon"] a,:root[data-theme="zon"] .hint{color:var(--accent)}
+:root[data-theme="zon"] .stars{color:#ffa41c}
+:root[data-theme="zon"] .tip{border-bottom-color:var(--accent)}
+/* Halloween: purple, slime green and pumpkin orange on near-black */
+:root[data-theme="halloween"]{
+  --bg:#0c0911; --paper:#16101e; --ink:#eee8f7; --muted:#a99cbd; --rule:#2f2342;
+  --accent:#9be35a; --accent-soft:#1d2b13; --shame:#ff8c2e; --shame-soft:#3a1f0b;
+  --ok:#b98cff; --warn:#ffb347;
+  --cloth-1:#4e2a72; --cloth-2:#2f5d2a; --cloth-3:#8a3f12; --cloth-4:#24202b; --cloth-5:#6a3592; --cloth-6:#46741f; --spine-ink:#f3ecff; --wood:#2c1f36; --wood-dark:#150e1b; --wood-back:#09060d;
+  --g-mystery:#41558a; --g-romance:#b8577a; --g-erotica:#a0609e; --g-scifi:#3a8aa6; --g-horror:#7a3040; --g-fiction:#93794c; --g-history:#95603a; --g-selfhelp:#4f8a63; --g-cooking:#a09033; --g-humor:#c97a35; --g-kids:#8670bd; --g-comics:#c45a3e; --g-nonfiction:#64757d; --g-unknown:#6f6c67;
+  color-scheme:dark}
+/* a full moon with a few bats in the top corner, and purple fog rising from the bottom (no spiders, as ordered) */
+:root[data-theme="halloween"] body{background:
+  radial-gradient(ellipse 90% 45% at 50% 108%, rgba(118,58,190,.32), transparent 70%),
+  radial-gradient(ellipse 60% 35% at 10% 100%, rgba(110,200,70,.10), transparent 70%), var(--bg);background-attachment:fixed}
+:root[data-theme="halloween"] h1{font-family:"Creepster", "Literata", serif;font-weight:400;font-size:2.2rem;letter-spacing:.03em;color:var(--accent);text-shadow:0 0 12px rgba(155,227,90,.45)}
+:root[data-theme="halloween"] header.top{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='90' viewBox='0 0 180 90'%3E%3Cg fill='%234a3568'%3E%3Cpath d='M20 30c4-6 9-8 14-6-2 3-2 6 0 8 3-3 6-4 8-3l2-4 2 4c2-1 5 0 8 3 2-2 2-5 0-8 5-2 10 0 14 6-6-1-10 1-12 5-3-2-6-2-8 0-2-1-3-1-4 0s-2 1-4 0c-2-2-5-2-8 0-2-4-6-6-12-5z'/%3E%3Cpath transform='translate(95 8) scale(.7)' d='M20 30c4-6 9-8 14-6-2 3-2 6 0 8 3-3 6-4 8-3l2-4 2 4c2-1 5 0 8 3 2-2 2-5 0-8 5-2 10 0 14 6-6-1-10 1-12 5-3-2-6-2-8 0-2-1-3-1-4 0s-2 1-4 0c-2-2-5-2-8 0-2-4-6-6-12-5z'/%3E%3Cpath transform='translate(120 50) scale(.5)' d='M20 30c4-6 9-8 14-6-2 3-2 6 0 8 3-3 6-4 8-3l2-4 2 4c2-1 5 0 8 3 2-2 2-5 0-8 5-2 10 0 14 6-6-1-10 1-12 5-3-2-6-2-8 0-2-1-3-1-4 0s-2 1-4 0c-2-2-5-2-8 0-2-4-6-6-12-5z'/%3E%3C/g%3E%3C/svg%3E") no-repeat calc(50% + 40px) 2px / 150px 75px, radial-gradient(circle at 50% 50%, #f1ecff 0 18px, rgba(205,185,255,.35) 20px, rgba(150,110,230,.12) 30px, transparent 42px), rgba(12,9,17,.92);backdrop-filter:blur(6px)}
+:root[data-theme="halloween"] .card,:root[data-theme="halloween"] .tiles{box-shadow:0 0 0 1px rgba(155,100,255,.08), 0 10px 30px rgba(60,20,100,.35)}
+:root[data-theme="halloween"] .pile-title{color:var(--shame);text-shadow:0 0 14px rgba(255,140,46,.35)}
+:root[data-theme="halloween"] .btn.primary{background:var(--accent);color:#0c0911;border-color:var(--accent)}
+:root[data-theme="halloween"] .seg button[aria-pressed="true"]{background:#7b46c4;color:#fff}
+:root[data-theme="halloween"] .bookcase{box-shadow:0 0 40px rgba(130,70,210,.25), inset 0 18px 30px rgba(0,0,0,.6)}
 /* Light: the default's light colors, whatever the device is set to */
 :root[data-theme="light"]{color-scheme:light}
 .themesect{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}.themesect h4{margin:0;font-size:.9rem}
-.themepick{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.themepick{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
 .themepick button{display:flex;flex-direction:column;gap:6px;align-items:flex-start;border:1px solid var(--rule);background:var(--paper);color:var(--ink);border-radius:8px;padding:8px;font:inherit;font-size:.82rem;font-weight:600;cursor:pointer;text-align:left}
 .themepick button[aria-checked="true"]{outline:2px solid var(--accent);outline-offset:1px}
 .themepick .sw{display:flex;width:100%;height:28px;border-radius:5px;overflow:hidden;border:1px solid rgba(128,128,128,.3)}
@@ -1346,7 +1386,8 @@ $('#btnSettings').onclick = () => {
 const THEMES = [
   ['default', 'Default', 'Follows your device', ['#eceeea', '#1a1e21', '#27408b', '#a3322a']],
   ['cozy', 'Cozy', 'Candle-lit library', ['#16100b', '#211811', '#f0b25a', '#7d3a2c']],
-  ['zon', 'Zon', 'Bright storefront', ['#131921', '#ffffff', '#ffd814', '#007185']],
+  ['zon', 'Zon', 'Online bookstore', ['#131921', '#232f3e', '#ffd814', '#ffa41c']],
+  ['halloween', 'Halloween', 'Spooky season', ['#0c0911', '#7b46c4', '#9be35a', '#ff8c2e']],
   ['light', 'Light', 'Always light', ['#f7f8f5', '#eceeea', '#27408b', '#2f6b45']],
 ];
 function applyTheme(t) {
@@ -1819,7 +1860,7 @@ async function lookupBookInfo() {
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '1.39';
+const LATEST_SCRIPT = '1.40';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 let scriptVer = '';
@@ -1833,6 +1874,7 @@ const lsSet1 = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.r
 
 // ---------- what's new (shown in Settings) ----------
 const CHANGES = [
+  ['1.40', ['New Halloween theme: purple, slime green and pumpkin, with a moon and bats (no spiders)', 'Zon theme looks much more like an online bookstore']],
   ['1.39', ['Themes in Settings: Default, Cozy (candle-lit library), Zon (bright storefront) and Light']],
   ['1.38', ['"Time to read it all" leads with what\'s left, with a small table: whole library, still to read, and your pace']],
   ['1.37', ['Genres are Amazon\'s own now (Romance, Science Fiction & Fantasy…), with the sub-genre when you point at a spine', 'Fixed: paranormal romance was being counted as Horror', 'Your library gets one more look at each book page to pick these up']],
