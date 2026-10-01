@@ -640,8 +640,21 @@ function renderStats() {
   if (!pile.length) {
     stack.innerHTML = n ? '<div class="pile-empty">The shelf is empty. Every book has been opened.</div>' : '<div class="pile-empty muted">Import your library to fill the shelf.</div>';
   } else {
-    const fresh = pile.filter(isNew).sort((a,b) => b.date.localeCompare(a.date));
-    const shown = [...fresh, ...pile.filter(b => !isNew(b)).sort((a,b) => (a.date || '9').localeCompare(b.date || '9'))].slice(0, 72);
+    const SHELF = 100;
+    // Within any group: just-bought books first (newest first), then the longest-waiting
+    const pickOrder = list => [...list.filter(isNew).sort((a,b) => b.date.localeCompare(a.date)), ...list.filter(b => !isNew(b)).sort((a,b) => (a.date || '9').localeCompare(b.date || '9'))];
+    let shown;
+    if (S.settings.spineMode === 'genre') {
+      // The shelf doubles as a chart: each genre gets spines in proportion to its share of the unread pile, grouped together, biggest first
+      const groups = {}; pile.forEach(b => { const g = GENRES[b.genre] ? b.genre : 'unknown'; (groups[g] ||= []).push(b); });
+      const slots = Math.min(SHELF, pile.length);
+      const keys = Object.keys(groups).sort((a, b) => groups[b].length - groups[a].length);
+      const exact = keys.map(g => groups[g].length / pile.length * slots);
+      const seats = exact.map(Math.floor);
+      let left = slots - seats.reduce((a, b) => a + b, 0);
+      exact.map((x, i) => [x - seats[i], i]).sort((a, b) => b[0] - a[0]).forEach(([, i]) => { if (left > 0) { seats[i]++; left--; } }); // largest remainders get the leftover seats
+      shown = keys.flatMap((g, i) => pickOrder(groups[g]).slice(0, seats[i]));
+    } else shown = pickOrder(pile).slice(0, SHELF);
     const cloth = n => `var(--cloth-${n % 6 + 1})`;
     let html = '<div class="bookcase">' + shown.map((b, i) => {
       const h = hash(b.id + b.title), p = pagesOf(b);
@@ -655,10 +668,11 @@ function renderStats() {
     const gl = $('#genreLegend');
     if (S.settings.spineMode === 'genre') {
       const cnt = {}; pile.forEach(b => { const g = GENRES[b.genre] ? b.genre : 'unknown'; cnt[g] = (cnt[g] || 0) + 1; });
-      gl.innerHTML = Object.keys(GENRES).filter(g => cnt[g]).map(g => `<span><i style="background:var(--g-${g})"></i>${GENRES[g]} <span class="num muted">${cnt[g]}</span></span>`).join('');
+      gl.innerHTML = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a]).map(g => `<span><i style="background:var(--g-${g})"></i>${GENRES[g]} <span class="num muted">${cnt[g]} · ${Math.round(cnt[g] / pile.length * 100)}%</span></span>`).join('')
+        + (pile.length > SHELF ? `<span class="muted">Each genre gets its share of the ${SHELF} spines on the shelf.</span>` : '');
       gl.hidden = false;
     } else gl.hidden = true;
-    if (pile.length > shown.length) html += `<div class="more">+ ${fmtInt(pile.length - shown.length)} more that didn't fit on the shelf</div>`;
+    if (pile.length > shown.length) html += `<div class="more">+ ${fmtInt(pile.length - shown.length)} more that didn't fit on the shelf${S.settings.spineMode === 'genre' ? ', in the same proportions' : ''}</div>`;
     stack.innerHTML = html;
   }
   $('#fValue').textContent = mask(pileValue); $('#fValue').classList.toggle('masked', !S.showMoney);
@@ -1312,7 +1326,7 @@ async function lookupBookInfo() {
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '1.22';
+const LATEST_SCRIPT = '1.23';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 function checkScriptVersion(v) {

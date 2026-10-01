@@ -35,7 +35,7 @@ Your books are stored only in your own browser. Nothing is sent to a server, and
 | Section | What you get |
 | --- | --- |
 | **Summary** | Books owned, library value (hidden until you click it), total reading time, and the percent of your library you've never opened. |
-| **Shelf of Shame** | Your unread books drawn as spines on a bookcase. Thicker books get wider spines. Hover a spine to see the title, author and page count. |
+| **Shelf of Shame** | Up to 100 of your unread books drawn as spines on a bookcase. Thicker books get wider spines. Hover a spine to see the title, author and page count. |
 | **Shame stats** | Money spent on unread books, hours of reading waiting on the shelf, the date you'd finish everything at your daily pace, your oldest unread book, and books added vs. finished in the last 12 months. |
 | **Breakdowns** | Books by status, books added per year, and your most-owned authors with how many of theirs are unread. |
 | **Your library** | A searchable, sortable table of every book. Change a status right in the table, or click a title to edit it. |
@@ -44,7 +44,7 @@ Statuses are **Unread**, **Reading**, **Finished** and **Gave up**. Only **Unrea
 
 Books bought in the **last 5 days** are outlined in gold and placed first on the Shelf of Shame, with a *new* tag in the library table. With the sync script, purchase dates come straight from Amazon. Without it, dates come from the Kindle for PC app file or an Amazon orders file, and a Kindle book that first shows up after your first import is dated the day it appeared. To mark a book as just bought yourself, click its title and set **Added on** to the purchase date.
 
-**Spine color.** Above the bookcase, switch **Spine color** between **Default** (mixed book-cloth colors) and **By genre**. In genre mode each spine is colored by genre, with a key under the shelf showing how many unread books are in each. Genres come from Amazon's own categories for each book (its Kindle Store path, like *Kindle eBooks › Mystery, Thriller & Suspense › Thrillers*, plus its best-seller categories), read by the sync script. Without the script, set genres by clicking a book. To fix a wrong genre, click the book's title and pick one from **Genre**. Genres: Mystery & Thriller, Romance, Sci-Fi & Fantasy, Horror, General Fiction, History & Biography, Self-help & Health, Cooking & Food, Humor, Kids & YA, Comics, Other Nonfiction.
+**Spine color.** Above the bookcase, switch **Spine color** between **Default** (mixed book-cloth colors) and **By genre**. In genre mode the shelf doubles as a chart: its 100 spines are split between genres in proportion to your unread books, grouped together, biggest genre first. If half your unread books are Sci-Fi & Fantasy, half the spines are. The key under the shelf shows each genre's count and percentage. Genres come from Amazon's own categories for each book (its Kindle Store path, like *Kindle eBooks › Mystery, Thriller & Suspense › Thrillers*, plus its best-seller categories), read by the sync script. Without the script, set genres by clicking a book. To fix a wrong genre, click the book's title and pick one from **Genre**. Genres: Mystery & Thriller, Romance, Sci-Fi & Fantasy, Horror, General Fiction, History & Biography, Self-help & Health, Cooking & Food, Humor, Kids & YA, Comics, Other Nonfiction.
 
 ---
 
