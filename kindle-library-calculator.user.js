@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.21
+// @version      1.22
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -18,7 +18,6 @@
 // @grant        GM_xmlhttpRequest
 // @grant        GM_info
 // @connect      goodreads.com
-// @connect      googleapis.com
 // @connect      amazon.com
 // @connect      amazon.co.uk
 // @connect      amazon.ca
@@ -181,46 +180,48 @@ async function fetchPrices(owned, progress, paid = []) {
   GM_setValue('prices', JSON.stringify(prices));
   return prices;
 }
-// Today's Kindle price from the book's Amazon page. For Kindle Unlimited books Amazon shows "$0.00 or $5.99 to buy"; the buy price is used.
-function parseKindlePrice(html) {
+// Facts from a book's Amazon page: today's Kindle price (for Kindle Unlimited books, the "to buy" price),
+// print length in pages, and Amazon's categories for the book (used to pick a genre).
+function parseBookInfo(html) {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   doc.querySelectorAll('script,style,noscript').forEach(n => n.remove());
-  const num = s => { const m = String(s || '').match(/\$\s?(\d[\d,]*\.\d\d)/); return m ? +m[1].replace(/,/g, '') : null; };
-  const sw = doc.querySelector('#tmm-grid-swatch-KINDLE, #tmmSwatches .swatchElement.selected, #formats');
-  const swText = sw ? sw.textContent.replace(/\s+/g, ' ') : '';
-  let m = swText.match(/\$\s?[\d,]*\.\d\d\s*or\s*\$\s?(\d[\d,]*\.\d\d)\s*to buy/i);
-  if (m) return +m[1].replace(/,/g, '');
   const text = (doc.body ? doc.body.textContent : '').replace(/\s+/g, ' ');
-  m = text.match(/Kindle\s*\$\s?[\d,]*\.\d\d\s*or\s*\$\s?(\d[\d,]*\.\d\d)\s*to buy/i);
-  if (m) return +m[1].replace(/,/g, '');
-  for (const sel of ['#kindleALCAccordion_desktop_price_content', '#priceBlock-outsideOfForm_feature_div', '#kindle-price', '#corePriceDisplay_desktop_feature_div .a-offscreen', '#corePrice_feature_div .a-offscreen']) {
-    const e = doc.querySelector(sel); const v = e && num(e.textContent); if (v != null) return v;
-  }
-  const v = num(swText); if (v != null && v > 0) return v;
-  m = text.match(/(?:^|\s)Kindle\s*\$\s?(\d[\d,]*\.\d\d)(?!\s*or)/);
-  return m ? +m[1].replace(/,/g, '') : null;
+  const num = s => { const m = String(s || '').match(/\$\s?(\d[\d,]*\.\d\d)/); return m ? +m[1].replace(/,/g, '') : null; };
+  const price = (() => {
+    const sw = doc.querySelector('#tmm-grid-swatch-KINDLE, #tmmSwatches .swatchElement.selected, #formats');
+    const swText = sw ? sw.textContent.replace(/\s+/g, ' ') : '';
+    let m = swText.match(/\$\s?[\d,]*\.\d\d\s*or\s*\$\s?(\d[\d,]*\.\d\d)\s*to buy/i) || text.match(/Kindle\s*\$\s?[\d,]*\.\d\d\s*or\s*\$\s?(\d[\d,]*\.\d\d)\s*to buy/i);
+    if (m) return +m[1].replace(/,/g, '');
+    for (const sel of ['#kindleALCAccordion_desktop_price_content', '#priceBlock-outsideOfForm_feature_div', '#kindle-price', '#corePriceDisplay_desktop_feature_div .a-offscreen', '#corePrice_feature_div .a-offscreen']) {
+      const e = doc.querySelector(sel); const v = e && num(e.textContent); if (v != null) return v;
+    }
+    const v = num(swText); if (v != null && v > 0) return v;
+    m = text.match(/(?:^|\s)Kindle\s*\$\s?(\d[\d,]*\.\d\d)(?!\s*or)/);
+    return m ? +m[1].replace(/,/g, '') : null;
+  })();
+  const pagesEl = doc.querySelector('#rpi-attribute-book_details-ebook_pages .rpi-attribute-value');
+  const pm = (pagesEl ? pagesEl.textContent : '').match(/([\d,]+)\s*pages/i) || text.match(/Print length\s*:?[^\d]{0,6}([\d,]+)\s*pages/i);
+  const pages = pm ? +pm[1].replace(/,/g, '') : null;
+  const crumbs = doc.querySelector('#wayfinding-breadcrumbs_feature_div');
+  const cats = [];
+  if (crumbs) cats.push(crumbs.textContent.replace(/\s+/g, ' ').trim());
+  for (const m of text.matchAll(/#[\d,]+ in ([^#(]{3,80}?)(?= \(| #|$)/g)) if (!/^Kindle Store$/i.test(m[1].trim())) cats.push(m[1].trim());
+  return {price, pages, cats: cats.slice(0, 6)};
 }
 const KLC_CORE = {
-  // Look up today's Kindle price for a few books. blocked = Amazon asked for a CAPTCHA, so stop for now.
-  async kindlePrices(asins) {
+  // Look up a few books' Amazon pages. blocked = Amazon asked for a CAPTCHA, so stop for now.
+  async bookInfo(asins) {
     const shop = GM_getValue('kindleHost', 'read.amazon.com').replace(/^read\./, 'www.');
-    const prices = {};
+    const info = {};
     for (const a of asins) {
       try {
         const r = await gmGet(`https://${shop}/dp/${encodeURIComponent(a)}`);
-        if (/validateCaptcha|Enter the characters you see/i.test(r.text)) return {prices, blocked: true};
-        prices[a] = r.status === 200 ? parseKindlePrice(r.text) : null;
+        if (/validateCaptcha|Enter the characters you see/i.test(r.text)) return {info, blocked: true};
+        info[a] = r.status === 200 ? parseBookInfo(r.text) : {price: null, pages: null, cats: []};
       } catch { /* try again next time */ }
       await new Promise(res => setTimeout(res, 700));
     }
-    return {prices, blocked: false};
-  },
-  // JSON fetch that works on any page (used for genre lookups from Google Books)
-  async getJSON(url) {
-    const r = await gmGet(url);
-    if (r.status === 429) { const e = new Error('limit'); e.code = 429; throw e; }
-    if (r.status !== 200) throw new Error('HTTP ' + r.status);
-    return JSON.parse(r.text);
+    return {info, blocked: false};
   },
   // force = the Sync now button: always refresh the Kindle list. Otherwise reuse it for 6 hours.
   async sync(force, progress = () => {}, paid = []) {
@@ -252,9 +253,9 @@ if (onSite) {
     const d = e.data;
     if (!d || d.klc !== 1 || (e.origin && e.origin !== location.origin)) return;
     if (d.type === 'hello') post({type: 'ready', version: GM_info.script.version});
-    else if (d.type === 'kprice') {
-      const data = await KLC_CORE.kindlePrices((d.asins || []).slice(0, 20));
-      post({type: 'kpriceResult', id: d.id, data: JSON.stringify(data)});
+    else if (d.type === 'binfo') {
+      const data = await KLC_CORE.bookInfo((d.asins || []).slice(0, 20));
+      post({type: 'binfoResult', id: d.id, data: JSON.stringify(data)});
     }
     else if (d.type === 'sync') {
       const data = await KLC_CORE.sync(!!d.force, msg => post({type: 'progress', msg}), d.paid || []);
@@ -853,55 +854,27 @@ function statusFromProgress(p) {
 // ---------- rendering ----------
 // ---------- genres ----------
 const GENRES = {mystery:'Mystery & Thriller', romance:'Romance', scifi:'Sci-Fi & Fantasy', horror:'Horror', fiction:'General Fiction', history:'History & Biography', selfhelp:'Self-help & Health', cooking:'Cooking & Food', humor:'Humor', kids:'Kids & YA', comics:'Comics', nonfiction:'Other Nonfiction', unknown:'Unknown'};
+// Genre from Amazon's own categories for the book: the Kindle Store path ("Kindle eBooks › Mystery, Thriller & Suspense › Thrillers")
+// plus its best-seller categories. Rules are checked top to bottom; the first match wins.
 function genreFromCategories(cats) {
-  const c = cats.join(' | ').toLowerCase();
+  const c = (cats || []).join(' | ').toLowerCase();
   if (!c) return null;
   const rules = [
-    ['comics', /comics|graphic novel|manga/], ['kids', /juvenile|young adult/], ['cooking', /cooking|recipes|baking|food|beverages|cocktail/],
-    ['history', /true crime|biography|autobiography|memoir|history/], ['horror', /horror|ghost|paranormal/], ['romance', /romance/],
-    ['scifi', /science fiction|fantasy|dystopian|magic/], ['mystery', /mystery|thriller|suspense|crime|detective|noir/],
-    ['humor', /humor|comed/], ['selfhelp', /self-help|health|fitness|psychology|body, mind|religion|spiritual|business|family|relationships/],
-    ['fiction', /fiction/],
+    ['comics', /comics|graphic novel|manga/], ['kids', /juvenile|young adult|children|\bteen/], ['cooking', /cooking|cookbook|recipes|baking|\bfood|beverages|cocktail/],
+    ['history', /true crime|biograph|memoir|\bhistory\b/], ['horror', /horror|ghost|paranormal/], ['romance', /romance|romantic/],
+    ['scifi', /science fiction|fantasy|dystopian|magic|sci-fi/], ['mystery', /mystery|thriller|suspense|crime|detective|noir/],
+    ['humor', /humor|comed/], ['selfhelp', /self-help|health|fitness|psychology|mind, body|religion|spiritual|business|relationships|parenting/],
+    ['fiction', /fiction|literature|novel/],
   ];
   for (const [g, re] of rules) if (re.test(c)) return g;
   return 'nonfiction';
 }
-const getJSON = async url => {
-  if (typeof KLC_CORE !== 'undefined' && KLC_CORE.getJSON) return KLC_CORE.getJSON(url);
-  const r = await fetch(url);
-  if (r.status === 429) { const e = new Error('limit'); e.code = 429; throw e; }
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  return r.json();
-};
-let genreRunning = false;
 function genreStatus(msg) { const el = $('#genreStatus'); el.hidden = !msg; el.textContent = msg || ''; }
-async function lookupGenres() {
-  if (genreRunning || S.settings.spineMode !== 'genre' || S.demo) return;
-  const todo = S.books.filter(b => !b.genre && !b.genreTried).sort((a, b) => (a.status === 'unread' ? 0 : 1) - (b.status === 'unread' ? 0 : 1));
-  if (!todo.length) { genreStatus(''); return; }
-  genreRunning = true;
-  let done = 0;
-  try {
-    for (const b of todo) {
-      if (S.settings.spineMode !== 'genre') break;
-      genreStatus(`Looking up genres… ${done} of ${todo.length}`);
-      const t = String(b.title).split(/[:(\[]/)[0].trim(), a = surname(b.author);
-      const q = b.isbn ? `isbn:${b.isbn}` : `intitle:${t}` + (a ? `+inauthor:${a}` : '');
-      try {
-        const j = await getJSON(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q).replace(/%2B/g, '+')}&maxResults=3&printType=books&fields=items(volumeInfo/categories)`);
-        const cats = (j.items || []).flatMap(i => i.volumeInfo?.categories || []);
-        b.genre = genreFromCategories(cats) || 'unknown';
-      } catch (e) {
-        if (e.code === 429 || /limit|429/.test(e.message)) { genreStatus(`Google Books daily limit reached after ${done} books. The rest continue next time.`); return; }
-        if (!done) { genreStatus("Genre lookup isn't available here. Click a book's title to set its genre."); return; }
-        b.genreTried = true;
-      }
-      done++;
-      if (done % 15 === 0) { renderStats(); scheduleSave(); }
-      await new Promise(r => setTimeout(r, 250));
-    }
-    genreStatus('');
-  } finally { genreRunning = false; renderStats(); scheduleSave(); }
+// Genres, page counts and today's prices all come from one look at each book's Amazon page (needs the sync script)
+function lookupGenres() {
+  if (typeof lookupBookInfo === 'function') { lookupBookInfo(); return; }
+  const missing = S.books.filter(b => !b.genre).length;
+  genreStatus(S.settings.spineMode === 'genre' && missing && !S.demo ? `${missing} books have no genre yet. Genres come from Amazon through the sync script, or click a book's title to set one.` : '');
 }
 function setSpineMode(m) {
   S.settings.spineMode = m;
@@ -1523,7 +1496,7 @@ window.addEventListener('message', e => {
   if (!d || d.klc !== 1 || (e.origin && e.origin !== location.origin && location.origin !== 'null')) return;
   if (d.type === 'ready') { enableSync(); checkScriptVersion(d.version); }
   else if (d.type === 'progress') setSync(d.msg);
-  else if (d.type === 'kpriceResult' && kpWaiters[d.id]) { const w = kpWaiters[d.id]; delete kpWaiters[d.id]; try { w(JSON.parse(d.data)); } catch { w(null); } }
+  else if (d.type === 'binfoResult' && kpWaiters[d.id]) { const w = kpWaiters[d.id]; delete kpWaiters[d.id]; try { w(JSON.parse(d.data)); } catch { w(null); } }
   else if (d.type === 'result' && bridgeWaiters) { const w = bridgeWaiters; bridgeWaiters = null; try { w.resolve(JSON.parse(d.data)); } catch (err) { w.reject(err); } }
 });
 function startSync() {
@@ -1594,45 +1567,54 @@ async function runSync(force) {
     const kTxt = data.kErr && !kItems.length ? `Kindle failed: ${data.kErr}` : kItems.length ? `Kindle ${kItems.length} books` + (data.kErr ? ' (older copy: ' + data.kErr + ')' : '') : 'Kindle not synced';
     lastSyncMsg = `Synced ${when} · ${grTxt} · ${kTxt}${oTxt}`;
     setSync(lastSyncMsg, data.grErr || data.kErr || data.oErr ? 'local' : 'db');
-    setTimeout(lookupKindlePrices, 500);
+    setTimeout(lookupBookInfo, 500);
   } catch (e) {
     setSync(e.message || String(e), 'local');
   } finally { syncing = false; $('#btnSync').disabled = false; }
 }
 
-// ---------- today's Kindle prices (for books without a known price paid) ----------
-function kpFetch(asins) {
-  if (hasCore) return KLC_CORE.kindlePrices(asins);
+// ---------- facts from each book's Amazon page: genre, page count, today's price ----------
+// Each book's page is read once for genre and pages; today's price (only for books without a price paid) is rechecked monthly.
+function infoFetch(asins) {
+  if (hasCore) return KLC_CORE.bookInfo(asins);
   return new Promise(resolve => {
     const id = ++kpSeq; kpWaiters[id] = resolve;
-    postBridge({type: 'kprice', id, asins});
+    postBridge({type: 'binfo', id, asins});
     setTimeout(() => { if (kpWaiters[id]) { delete kpWaiters[id]; resolve(null); } }, 120000);
   });
 }
-async function lookupKindlePrices() {
+async function lookupBookInfo() {
   if (kpRunning || !syncOn || S.demo) return;
   const MONTH = 30 * 864e5, now = Date.now();
-  const todo = S.books.filter(b => b.asin && !hasPaid(b) && b.source !== 'free' && b.source !== 'sample' && (!b.kpTime || now - b.kpTime > MONTH))
+  const needsPrice = b => !hasPaid(b) && b.source !== 'free' && b.source !== 'sample' && (!b.kpTime || now - b.kpTime > MONTH);
+  const todo = S.books.filter(b => b.asin && (!b.infoTime || needsPrice(b)))
     .sort((a, b) => (a.status === 'unread' ? 0 : 1) - (b.status === 'unread' ? 0 : 1) || (counted(a) ? 0 : 1) - (counted(b) ? 0 : 1));
-  if (!todo.length) return;
+  if (!todo.length) { genreStatus(''); return; }
   kpRunning = true;
   let done = 0, found = 0;
   try {
     for (let i = 0; i < todo.length; i += 8) {
       const batch = todo.slice(i, i + 8);
-      setSync(`${lastSyncMsg} · Looking up today's Kindle prices… ${done} of ${todo.length}`);
-      const res = await kpFetch(batch.map(b => b.asin));
+      setSync(`${lastSyncMsg} · Reading book details from Amazon (genre, pages, price)… ${done} of ${todo.length}`);
+      const res = await infoFetch(batch.map(b => b.asin));
       if (!res) break;
-      for (const b of batch) if (b.asin in res.prices) { const v = res.prices[b.asin]; if (v != null) { b.kp = v; found++; } b.kpTime = now; done++; }
+      for (const b of batch) {
+        const inf = res.info[b.asin]; if (!inf) continue;
+        if (!hasPaid(b) && inf.price != null) { b.kp = inf.price; found++; }
+        b.kpTime = now;
+        if (!(b.pages > 0) && inf.pages) { b.pages = inf.pages; b.pagesSrc = 'amazon'; }
+        if (b.genreSrc !== 'manual') { const g = genreFromCategories(inf.cats); if (g) { b.genre = g; b.genreSrc = 'amazon'; } }
+        b.infoTime = now; done++;
+      }
       renderStats(); renderShelf(); scheduleSave();
-      if (res.blocked) { setSync(`${lastSyncMsg} · Amazon paused price lookups after ${done}; the rest continue next visit`, 'local'); return; }
+      if (res.blocked) { setSync(`${lastSyncMsg} · Amazon paused lookups after ${done}; the rest continue next visit`, 'local'); return; }
     }
-    setSync(`${lastSyncMsg}${found ? ` · ${found} Kindle prices today` : ''}`, 'db');
+    setSync(`${lastSyncMsg}${done ? ` · details for ${done} books` : ''}`, 'db');
   } finally { kpRunning = false; }
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '1.21';
+const LATEST_SCRIPT = '1.22';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 function checkScriptVersion(v) {
