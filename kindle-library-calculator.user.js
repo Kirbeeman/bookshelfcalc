@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.11
+// @version      1.12
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -141,12 +141,42 @@ async function fetchOwnership(progress) {
       'activity=GetContentOwnershipData&activityInput=' + encodeURIComponent(JSON.stringify(input)) + '&csrfToken=' + encodeURIComponent(token));
     let j; try { j = JSON.parse(r.text).GetContentOwnershipData; } catch { throw new Error('Amazon sent an unexpected reply'); }
     const batch = (j && j.items) || [];
-    for (const b of batch) items.push({asin: b.asin, acquiredTime: b.acquiredTime, acquiredDate: b.acquiredDate, readStatus: b.readStatus, originType: b.originType});
+    for (const b of batch) items.push({asin: b.asin, title: b.title, acquiredTime: b.acquiredTime, acquiredDate: b.acquiredDate, readStatus: b.readStatus, originType: b.originType, orderId: b.orderId, orderDetailURL: b.orderDetailURL});
     progress(`Reading purchase dates… ${items.length}${j && j.numberOfItems ? ' of ' + j.numberOfItems : ''}`);
     if (batch.length < BATCH || (j.numberOfItems && items.length >= j.numberOfItems)) break;
   }
   if (!items.length) throw new Error('no books found on Content & Devices');
   return items;
+}
+// Prices paid, read from each order's summary page (only the item price is kept; nothing else from the page is stored)
+async function fetchPrices(owned, progress) {
+  const prices = JSON.parse(GM_getValue('prices', '{}') || '{}');
+  const todo = owned.filter(i => i.originType === 'Purchase' && i.orderDetailURL && !(i.asin in prices));
+  const byOrder = new Map();
+  todo.forEach(i => { const k = i.orderId || i.orderDetailURL; if (!byOrder.has(k)) byOrder.set(k, []); byOrder.get(k).push(i); });
+  let done = 0;
+  for (const [, books] of [...byOrder].slice(0, 40)) {
+    progress(`Reading prices paid… ${done} of ${todo.length}`);
+    try {
+      const r = await gmGet(books[0].orderDetailURL);
+      const doc = new DOMParser().parseFromString(r.text, 'text/html');
+      doc.querySelectorAll('script, style, noscript, header, #navbar, #navFooter').forEach(n => n.remove());
+      const text = (doc.body ? doc.body.textContent : '').replace(/\s+/g, ' ');
+      const money = s => +s.replace(/[^\d.]/g, '');
+      for (const b of books) {
+        let price = null;
+        const key = String(b.title || '').slice(0, 30);
+        const at = key ? text.indexOf(key) : -1;
+        if (at >= 0) { const m = text.slice(at).match(/Sold by:[^$]{0,200}?\$\s?(\d[\d,]*\.\d\d)/); if (m) price = money(m[1]); }
+        if (price == null && books.length === 1) { const m = text.match(/Item\(s\) Subtotal:\s*\$\s?(\d[\d,]*\.\d\d)/); if (m) price = money(m[1]); }
+        prices[b.asin] = price; // null = looked, nothing found; not retried
+        done++;
+      }
+    } catch { /* network hiccup: try this order again next sync */ }
+    await new Promise(res => setTimeout(res, 200));
+  }
+  GM_setValue('prices', JSON.stringify(prices));
+  return prices;
 }
 const KLC_CORE = {
   // JSON fetch that works on any page (used for genre lookups from Google Books)
@@ -172,6 +202,9 @@ const KLC_CORE = {
       catch (e) { out.oErr = e.message || String(e); }
     }
     out.owned = o;
+    if (o && o.items) {
+      try { out.prices = await fetchPrices(o.items, progress); } catch (e) { out.pErr = e.message || String(e); }
+    }
     return out;
   },
 };
@@ -1036,6 +1069,7 @@ $('#editForm').addEventListener('submit', e => {
     status: $('#eStatus').value, progress: Math.max(0, Math.min(100, +$('#eProgress').value || 0)),
     pages: num($('#ePages').value), price: num($('#ePrice').value), date: $('#eDate').value || '',
     ...(($('#eDate').value || '') !== ((editing && editing.date) || '') ? {dateManual: true, dateEst: false} : {}),
+    ...(editing && String($('#ePrice').value) !== String(editing.price ?? '') ? {priceManual: true} : {}),
     source: $('#eSource').value, rating: +$('#eRating').value, lock: true,
     ...(editing && $('#eSource').value !== editing.source ? {sourceManual: true} : {}),
     ...($('#eGenre').value ? {genre: $('#eGenre').value, genreSrc: 'manual'} : (editing && editing.genreSrc === 'manual' ? {genre: '', genreSrc: ''} : {})),
@@ -1457,10 +1491,15 @@ async function runSync(force) {
     if (kItems.length) merge(fromKindle(kItems), false, 'kindle');
     const res = merge(gr, false, 'goodreads', !kItems.length || S.settings.grAll);
     const dated = applyOwnership(data.owned?.items);
+    let priced = 0;
+    if (data.prices) for (const b of S.books) {
+      const v = b.asin && data.prices[b.asin];
+      if (typeof v === 'number' && !b.priceManual) { b.price = v; priced++; }
+    }
     renderAll(); scheduleSave();
     const when = new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
     const grTxt = data.grErr ? `Goodreads failed: ${data.grErr}` : `Goodreads ${gr.length} books, ${res.updated} matched`;
-    const oTxt = data.oErr ? ` · Purchase dates failed: ${data.oErr}` : dated ? ` · ${dated} purchase dates` : '';
+    const oTxt = (data.oErr ? ` · Purchase dates failed: ${data.oErr}` : dated ? ` · ${dated} purchase dates` : '') + (priced ? ` · ${priced} prices` : '');
     const kTxt = data.kErr && !kItems.length ? `Kindle failed: ${data.kErr}` : kItems.length ? `Kindle ${kItems.length} books` + (data.kErr ? ' (older copy: ' + data.kErr + ')' : '') : 'Kindle not synced';
     setSync(`Synced ${when} · ${grTxt} · ${kTxt}${oTxt}`, data.grErr || data.kErr || data.oErr ? 'local' : 'db');
   } catch (e) {

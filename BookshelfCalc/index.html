@@ -808,6 +808,7 @@ $('#editForm').addEventListener('submit', e => {
     status: $('#eStatus').value, progress: Math.max(0, Math.min(100, +$('#eProgress').value || 0)),
     pages: num($('#ePages').value), price: num($('#ePrice').value), date: $('#eDate').value || '',
     ...(($('#eDate').value || '') !== ((editing && editing.date) || '') ? {dateManual: true, dateEst: false} : {}),
+    ...(editing && String($('#ePrice').value) !== String(editing.price ?? '') ? {priceManual: true} : {}),
     source: $('#eSource').value, rating: +$('#eRating').value, lock: true,
     ...(editing && $('#eSource').value !== editing.source ? {sourceManual: true} : {}),
     ...($('#eGenre').value ? {genre: $('#eGenre').value, genreSrc: 'manual'} : (editing && editing.genreSrc === 'manual' ? {genre: '', genreSrc: ''} : {})),
@@ -1229,10 +1230,15 @@ async function runSync(force) {
     if (kItems.length) merge(fromKindle(kItems), false, 'kindle');
     const res = merge(gr, false, 'goodreads', !kItems.length || S.settings.grAll);
     const dated = applyOwnership(data.owned?.items);
+    let priced = 0;
+    if (data.prices) for (const b of S.books) {
+      const v = b.asin && data.prices[b.asin];
+      if (typeof v === 'number' && !b.priceManual) { b.price = v; priced++; }
+    }
     renderAll(); scheduleSave();
     const when = new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
     const grTxt = data.grErr ? `Goodreads failed: ${data.grErr}` : `Goodreads ${gr.length} books, ${res.updated} matched`;
-    const oTxt = data.oErr ? ` · Purchase dates failed: ${data.oErr}` : dated ? ` · ${dated} purchase dates` : '';
+    const oTxt = (data.oErr ? ` · Purchase dates failed: ${data.oErr}` : dated ? ` · ${dated} purchase dates` : '') + (priced ? ` · ${priced} prices` : '');
     const kTxt = data.kErr && !kItems.length ? `Kindle failed: ${data.kErr}` : kItems.length ? `Kindle ${kItems.length} books` + (data.kErr ? ' (older copy: ' + data.kErr + ')' : '') : 'Kindle not synced';
     setSync(`Synced ${when} · ${grTxt} · ${kTxt}${oTxt}`, data.grErr || data.kErr || data.oErr ? 'local' : 'db');
   } catch (e) {

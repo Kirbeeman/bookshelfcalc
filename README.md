@@ -84,7 +84,7 @@ Tampermonkey updates the script by itself. It checks this GitHub repo about once
 1. The page finds the script and shows **Sync now** and a status line under the title.
 2. The script reads your Goodreads **to-read**, **currently-reading** and **read** shelves. The status line shows progress, for example *Reading your Goodreads "read" shelf…*
 3. It reads your **Kindle library** list in pages of 50 (*Reading your Kindle library… 150 books*). To keep things quick it reuses the last copy for up to 6 hours. **Sync now** always fetches a fresh one.
-4. It reads **purchase dates** from Amazon's **Content & Devices** page (once a day, or whenever you press **Sync now**). Every book gets the real date you bought it. If you used Kindle's own **Mark as read**, those books count as finished too.
+4. It reads **purchase dates** from Amazon's **Content & Devices** page (once a day, or whenever you press **Sync now**). Every book gets the real date you bought it. If you used Kindle's own **Mark as read**, those books count as finished too. For books you bought yourself, it also reads the **price you paid** (before tax) from each order's summary page, up to 40 orders per sync, so a big library fills in over a few visits. Only the price is kept. Books shared with you, free books and Kindle Unlimited books have no order of yours to read.
 5. It **matches the two** (see the next section) and updates the numbers, charts and Shelf of Shame.
 6. Everything is saved in your browser for next time.
 
