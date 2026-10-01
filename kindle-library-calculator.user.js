@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.31
+// @version      1.32
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -988,6 +988,8 @@ function renderStats() {
       let left = slots - seats.reduce((a, b) => a + b, 0);
       exact.map((x, i) => [x - seats[i], i]).sort((a, b) => b[0] - a[0]).forEach(([, i]) => { if (left > 0) { seats[i]++; left--; } }); // largest remainders get the leftover seats
       shown = keys.flatMap((g, i) => pickOrder(groups[g]).slice(0, seats[i]));
+      // Just-bought books lead the whole shelf whatever their genre; the genre groups follow
+      shown = [...shown.filter(isNew).sort((a, b) => b.date.localeCompare(a.date)), ...shown.filter(b => !isNew(b))];
     } else shown = pickOrder(pile).slice(0, SHELF);
     const cloth = n => `var(--cloth-${n % 6 + 1})`;
     let html = '<div class="bookcase">' + shown.map((b, i) => {
@@ -1734,7 +1736,7 @@ async function lookupBookInfo() {
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '1.31';
+const LATEST_SCRIPT = '1.32';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 function checkScriptVersion(v) {
