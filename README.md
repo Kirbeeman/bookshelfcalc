@@ -189,7 +189,7 @@ Click **Settings** to change:
 | Pages you read per day | 30 | Used to work out when you'd clear the shelf. |
 | Currency | USD | How money is displayed. |
 | Finished when progress reaches % | 90 | Kindle books rarely hit 100% because of back matter. |
-| Count Kindle Unlimited, Prime and borrowed books | Off | Borrowed books aren't yours, so they're left out of totals by default. |
+| Count Kindle Unlimited, Prime, borrowed and family-shared books | Off | Books you didn't buy are left out of totals by default. With the sync script, Amazon says how each book was obtained, so books shared with you through Amazon Family Library are marked **shared** automatically. Change a book's **How you got it** by hand and the sync leaves it alone. |
 | Count samples | Off | Samples are left out by default. |
 | Include Goodreads books that aren't in my Kindle library | Off | Tampermonkey version only. |
 

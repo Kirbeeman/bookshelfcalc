@@ -340,7 +340,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.78rem;re
       <label>Pages<input type="number" id="ePages" min="0" step="1" placeholder="unknown"></label>
       <label>Price paid<input type="number" id="ePrice" min="0" step="0.01" placeholder="unknown"></label>
       <label>Added on<input type="date" id="eDate"></label>
-      <label>How you got it<select id="eSource"><option value="purchase">Bought</option><option value="free">Free</option><option value="ku">Kindle Unlimited</option><option value="prime">Prime Reading</option><option value="sample">Sample</option><option value="other">Borrowed / other</option></select></label>
+      <label>How you got it<select id="eSource"><option value="purchase">Bought</option><option value="free">Free</option><option value="ku">Kindle Unlimited</option><option value="prime">Prime Reading</option><option value="sample">Sample</option><option value="shared">Shared with me (Family Library)</option><option value="other">Borrowed / other</option></select></label>
       <label>Genre<select id="eGenre"></select></label>
       <label>Rating<select id="eRating"><option value="0">No rating</option><option value="1">★</option><option value="2">★★</option><option value="3">★★★</option><option value="4">★★★★</option><option value="5">★★★★★</option></select></label>
     </div>
@@ -362,7 +362,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.78rem;re
       <label>Pages you read per day<input type="number" id="sDay" min="1"></label>
       <label>Currency<select id="sCur"><option>USD</option><option>GBP</option><option>EUR</option><option>CAD</option><option>AUD</option><option>JPY</option><option>INR</option><option>BRL</option><option>MXN</option></select></label>
       <label>Finished when progress reaches %<input type="number" id="sDone" min="50" max="100"></label>
-      <label class="check full"><input type="checkbox" id="sBorrowed"> Count Kindle Unlimited, Prime and borrowed books</label>
+      <label class="check full"><input type="checkbox" id="sBorrowed"> Count Kindle Unlimited, Prime, borrowed and family-shared books</label>
       <label class="check full"><input type="checkbox" id="sSamples"> Count samples</label>
       <label class="check full" data-us hidden><input type="checkbox" id="sGrAll"> Include Goodreads books that aren't in my Kindle library</label>
     </div>
@@ -500,7 +500,7 @@ const fmtInt = v => Math.round(v).toLocaleString();
 const fmtHours = h => h < 1 ? Math.round(h * 60) + ' min' : fmtInt(h) + ' h';
 const counted = b => {
   if (b.source === 'sample' && !S.settings.samples) return false;
-  if ((b.source === 'ku' || b.source === 'prime' || b.source === 'other') && !S.settings.borrowed) return false;
+  if ((b.source === 'ku' || b.source === 'prime' || b.source === 'other' || b.source === 'shared') && !S.settings.borrowed) return false;
   return true;
 };
 const pagesOf = b => b.pages > 0 ? b.pages : S.settings.defPages;
@@ -511,7 +511,7 @@ const recentCutoff = () => new Date(Date.now() - 5 * 864e5).toISOString().slice(
 const isNew = b => !!b.date && b.date >= recentCutoff();
 const STATUS = {unread:'Unread', reading:'Reading', finished:'Finished', abandoned:'Gave up'};
 const STATUS_COLOR = {finished:'var(--ok)', reading:'var(--accent)', unread:'var(--shame)', abandoned:'var(--muted)'};
-const SOURCE = {purchase:'', free:'free', ku:'KU', prime:'Prime', sample:'sample', other:'borrowed'};
+const SOURCE = {purchase:'', free:'free', ku:'KU', prime:'Prime', sample:'sample', other:'borrowed', shared:'shared'};
 const hash = s => { let h = 2166136261; for (const c of String(s)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
 const yearsAgo = d => { const ms = Date.now() - new Date(d).getTime(); return ms / 3.156e10; };
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -809,6 +809,7 @@ $('#editForm').addEventListener('submit', e => {
     pages: num($('#ePages').value), price: num($('#ePrice').value), date: $('#eDate').value || '',
     ...(($('#eDate').value || '') !== ((editing && editing.date) || '') ? {dateManual: true, dateEst: false} : {}),
     source: $('#eSource').value, rating: +$('#eRating').value, lock: true,
+    ...(editing && $('#eSource').value !== editing.source ? {sourceManual: true} : {}),
     ...($('#eGenre').value ? {genre: $('#eGenre').value, genreSrc: 'manual'} : (editing && editing.genreSrc === 'manual' ? {genre: '', genreSrc: ''} : {})),
   };
   if (!data.title) return;
@@ -1114,6 +1115,7 @@ function normGoodreads(list) {
   })).filter(b => b.title);
 }
 
+const ORIGIN = {purchase:'purchase', sharing:'shared', kindleunlimited:'ku', prime:'prime', primereading:'prime', sample:'sample', publiclibrarylending:'other', personallending:'other', rental:'other', koll:'other', freetrial:'free', comicsunlimited:'ku'};
 // Real purchase dates from Amazon replace missing or estimated ones; Kindle's "Mark as read" marks a book finished
 function applyOwnership(items) {
   if (!items || !items.length) return 0;
@@ -1125,6 +1127,9 @@ function applyOwnership(items) {
     const d = o.acquiredTime ? new Date(+o.acquiredTime).toISOString().slice(0,10) : toDate(o.acquiredDate);
     if (d && (!b.date || b.dateEst || b.date !== d) && !b.dateManual) { b.date = d; b.dateEst = false; }
     if (d) n++;
+    // How the book was obtained, from Amazon's own record (a source you picked by hand wins)
+    const src = ORIGIN[String(o.originType || '').toLowerCase()];
+    if (src && !b.sourceManual) b.source = src;
     if (/^READ$/i.test(o.readStatus || '') && !b.lock && b.status !== 'finished') { b.status = 'finished'; b.progress = 100; }
   }
   return n;
