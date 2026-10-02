@@ -212,6 +212,7 @@ const lsSet1 = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.r
 
 // ---------- what's new (shown in Settings) ----------
 const CHANGES = [
+  ['1.48', ['When Content & Devices wants your password again, the sync says so and links straight to it', 'The red dot on Settings goes away once you\'ve looked at what\'s new', 'A single flower in the vase on the shelf', 'Zon theme: sync problems are readable again']],
   ['1.47', ['Second genres and tags: a Fantasy book listed under Fantasy Romance also counts as Romance, shown as bands on its spine in By genre mode', 'Amazon\'s categories show as tags under each book in Your library, with a tag filter', 'A fresh look for the bookcase: outlined books, piles lying flat, and new knick-knacks', 'Every book\'s Amazon page gets one more look in the background to fill in the tags']],
   ['1.46', ['An out-of-date sync script now has to be updated before the page can be used']],
   ['1.45', ['Optional: shared and borrowed books on their own tab under Your library (turn it on in Settings)']],
@@ -250,8 +251,10 @@ function tryReload() {
 }
 
 // ---------- Settings: sync script status, update button, what's new ----------
+// The dot on Settings means something new is waiting there. It goes once you've opened Settings and pointed at (or tapped) the new part.
+const dotSeen = () => { try { return localStorage.getItem('klc-dot-seen') === LATEST_SCRIPT; } catch { return false; } };
 function refreshDot() {
-  const need = (scriptVer && verLess(scriptVer, LATEST_SCRIPT)) || lsFlag('klc-unseen');
+  const need = !dotSeen() && ((scriptVer && verLess(scriptVer, LATEST_SCRIPT)) || lsFlag('klc-unseen'));
   $('#btnSettings').classList.toggle('dot', !!need);
 }
 function renderScriptSect() {
@@ -266,14 +269,15 @@ function renderScriptSect() {
     : out ? `<p class="note"><b>Update ready.</b> You have version ${esc(scriptVer)}; version ${LATEST_SCRIPT} is out. Click Update, press <b>Update</b> in the Tampermonkey tab that opens, then come back. This page finishes by itself.</p><div class="row"><button type="button" class="btn primary" id="sUpdate">Update</button></div>`
     : `<p class="note" style="color:var(--ok)">✓ Sync script ${esc(scriptVer || LATEST_SCRIPT)}, up to date.</p>`;
   const unseen = lsFlag('klc-unseen');
-  sec.innerHTML = `<h4>Sync script and updates</h4>${st}<details class="news"${unseen ? ' open' : ''}><summary>What's new${unseen ? ` in ${LATEST_SCRIPT}` : ''}</summary>${CHANGES.slice(0, 3).map(([v, n]) => `<p><b>${v}</b></p><ul>${n.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`).join('')}</details>`;
+  sec.classList.toggle('fresh', !dotSeen() && (!!out || unseen));
+  if (!sec.dataset.w) { sec.dataset.w = '1'; const seen = () => { if (!sec.classList.contains('fresh')) return; try { localStorage.setItem('klc-dot-seen', LATEST_SCRIPT); } catch {} lsSet1('klc-unseen', ''); sec.classList.remove('fresh'); refreshDot(); }; ['pointerenter', 'focusin', 'click'].forEach(ev => sec.addEventListener(ev, seen)); }
+  sec.innerHTML = `<h4>Sync script and updates<span class="newtag">new</span></h4>${st}<details class="news"${unseen ? ' open' : ''}><summary>What's new${unseen ? ` in ${LATEST_SCRIPT}` : ''}</summary>${CHANGES.slice(0, 3).map(([v, n]) => `<p><b>${v}</b></p><ul>${n.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`).join('')}</details>`;
   const su = $('#sSetup'); if (su) su.onclick = () => { $('#dlgSettings').close(); openWizard('welcome'); };
   const up = $('#sUpdate'); if (up) up.onclick = () => { ssSet('klc-updating', '1'); window.open(SCRIPT_URL, '_blank', 'noopener'); up.textContent = 'Waiting for Tampermonkey…'; up.disabled = true; };
 }
 document.addEventListener('click', e => {
   if (!e.target.closest || !e.target.closest('#btnSettings')) return;
   renderScriptSect();
-  if (lsFlag('klc-unseen')) setTimeout(() => { lsSet1('klc-unseen', ''); refreshDot(); }, 0);
 });
 
 // ---------- sync progress card ----------
@@ -318,8 +322,10 @@ function syncProgress(msg) {
   else if ((m = msg.match(/purchase dates…\s*(\d+)?(?: of (\d+))?/i))) { before('owned'); stage('owned', 'run', m[1] ? `${fmtInt(+m[1])}${m[2] ? ' of ' + fmtInt(+m[2]) : ''}` : 'reading…', m[2] ? m[1] / m[2] : 0.3); }
   else if ((m = msg.match(/prices paid…\s*(\d+) of (\d+)/i))) { before('prices'); stage('prices', 'run', `${m[1]} of ${m[2]}`, m[1] / m[2]); }
 }
-function friendly(src, err) {
+function friendly(src, err, key) {
   const host = (err.match(/sign in at (\S+?) first/) || [])[1];
+  // Content & Devices asks for your password again every so often, even while amazon.com shows you signed in
+  if (host && key === 'owned') return {html: `<b>Amazon wants your password again for Content &amp; Devices.</b> Open <a href="https://${esc(host)}/hz/mycd/digital-console/contentlist/booksAll/dateDsc/" target="_blank" rel="noopener">Content &amp; Devices</a> in this browser, sign in if it asks, then press Retry. Amazon does this now and then for that page, even when the rest of amazon.com shows you signed in.`};
   if (host && /^read\./.test(host)) return {html: `<b>Open <a href="https://${esc(host)}" target="_blank" rel="noopener">${esc(host)}</a> once in this browser and sign in.</b> The Kindle reader has its own sign-in, separate from amazon.com. Then press Retry.`};
   if (host) return {html: `<b>Sign in to <a href="https://${esc(host)}" target="_blank" rel="noopener">${esc(host)}</a></b> in this browser, then press Retry.`};
   const code = (err.match(/\b(5\d\d|429)\b/) || [])[1];
@@ -335,7 +341,7 @@ function drawCardMsgs() {
 }
 function cardError(key, err, plain) {
   const src = {goodreads: 'Goodreads', kindle: 'Amazon', owned: 'Amazon', prices: 'Amazon', details: 'Amazon', sync: 'The sync'}[key] || 'Sync';
-  cardErrs.push(plain ? {html: esc(err)} : friendly(src, err));
+  cardErrs.push(plain ? {html: esc(err)} : friendly(src, err, key));
   drawCardMsgs();
   if (!syncing && !kpRunning) sum(`Finished with ${cardErrs.length === 1 ? 'a problem' : cardErrs.length + ' problems'} · click to see`, 'err');
 }
@@ -346,7 +352,7 @@ function cardResult(d, nGr, nK, dated, priced, fromOwned) {
   if (fromOwned) { stage('kindle', 'ok', nb(nK, 'book')); cardNote('Your books came from Amazon\'s Content & Devices list. For <b>reading progress</b>, open <a href="https://read.amazon.com" target="_blank" rel="noopener">read.amazon.com</a> once in this browser and sign in (the Kindle reader has its own sign-in), then sync again.'); }
   else if (d.kErr && !nK) { stage('kindle', 'err', 'failed'); cardError('kindle', d.kErr); } else stage('kindle', 'ok', nb(nK, 'book'));
   if (d.oErr) { stage('owned', 'err', 'failed'); cardError('owned', d.oErr); } else stage('owned', dated ? 'ok' : 'skip', dated ? nb(dated, 'date') : 'none');
-  if (d.pErr) { stage('prices', 'err', 'failed'); cardError('prices', d.pErr); } else stage('prices', 'ok', priced ? `${fmtInt(priced)} new` : 'up to date');
+  if (d.pErr) { stage('prices', 'err', 'failed'); cardError('prices', d.pErr); } else if (d.oErr) stage('prices', 'skip', 'needs purchase dates'); else stage('prices', 'ok', priced ? `${fmtInt(priced)} new` : 'up to date');
   if (d.pPaused) cardError('prices', `Amazon asked us to slow down while reading your orders${priced ? `, after ${priced} prices` : ''}. The rest are read on your next sync.`, true);
   if (!nGr && !nK) { stage('details', 'skip', ''); cardMaybeDone(); return; }
   stage('details', 'run', 'starting…', 0);
@@ -439,6 +445,8 @@ function wizGo(step) {
   const st = document.createElement('style');
   st.textContent = `
 #btnSettings.dot{position:relative}#btnSettings.dot::after{content:"";position:absolute;top:-3px;right:-3px;width:9px;height:9px;border-radius:50%;background:var(--shame);border:2px solid var(--bg)}
+.newtag{display:none;margin-left:8px;vertical-align:2px;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#fff;background:var(--shame);border-radius:999px;padding:1px 7px}
+#scriptSect.fresh{outline:2px solid var(--shame);outline-offset:6px;border-radius:4px;transition:outline-color .3s}#scriptSect.fresh .newtag{display:inline-block}
 .news summary{cursor:pointer;font-size:.85rem;font-weight:600}.news p{margin:8px 0 2px;font-size:.82rem}.news ul{margin:0;padding-left:18px;font-size:.82rem}
 .synccard{margin-top:14px;gap:8px;padding:12px 18px}.synccard .sc-note{font-size:.8rem;margin:0 0 4px}
 .schead{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:10px;width:100%;cursor:pointer;min-height:28px;border-radius:6px}.schead:focus-visible{outline:2px solid var(--accent);outline-offset:4px}

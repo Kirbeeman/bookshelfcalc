@@ -4,21 +4,21 @@ Newest first. The latest release is described in full; earlier ones are listed b
 
 ---
 
-## v1.47 (latest)
+## v1.48 (latest)
 
-**Second genres, tags and a new bookcase look**
+**Clearer purchase-date sign-in, Settings dot, flower in the vase**
 
-- **Second genres:** a book Amazon also lists under another genre gets a second one (a Fantasy book under "Fantasy Romance" gets Romance). In **By genre** mode it shows as two bands in that genre's color on the spine.
-- **Tags:** Amazon's categories for each book show as tags under its title in Your library. Click a tag, or use the **All tags** dropdown, to filter.
-- **Edit book** has a **Second genre** setting (automatic, None, or your pick) and lists Amazon's categories for the book. Your picks are never overwritten.
-- Pointing at a spine shows both genres and up to four tags. The spreadsheet export has Second genre and Tags columns.
-- **A fresh look for the bookcase:** outlined books with bands and labels, dark side posts, planks with a front edge, books lying flat in small piles now and then, and redrawn knick-knacks, with a small one set between books every couple of dozen spines.
-- Every book's Amazon page gets one more look in the background to fill in tags and second genres (about 10 minutes per 600 books). The sync script doesn't need an update, and genres you set by hand stay as they are.
+- When Amazon wants your password again for **Content & Devices**, the sync says so and links straight to that page, instead of the general "Sign in to amazon.com" message.
+- The red dot on **Settings** goes away once you've opened Settings and pointed at (or tapped) the new part, which is outlined with a **NEW** tag.
+- The vase on the shelf holds a single flower.
+- Fixed: Prices paid no longer says "up to date" when purchase dates couldn't be read; it says "needs purchase dates".
+- Fixed: in the Zon theme, sync problems were white text on a light box, and the Retry button had no visible label.
 
 ---
 
 ## Earlier versions
 
+- **v1.47** Second genres, tags and a new bookcase look
 - **v1.46** Required script updates block the page until updated
 - **v1.45** Optional "Shared & borrowed" tab under Your library
 - **v1.44** Fantasy and Science Fiction as separate genres

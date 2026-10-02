@@ -165,6 +165,8 @@ Your library lives in the browser you used. Clearing browser data, or using anot
 
 **"Update needed" won't go away.** Press **Update** in the Tampermonkey tab that opened, then come back. If no tab opened: Tampermonkey icon → **Utilities** → **Check for userscript updates**, then reload.
 
+**"Amazon wants your password again for Content & Devices."** Amazon asks for your password again on its Content & Devices page every so often, even while the rest of amazon.com shows you signed in. Follow the link in the message, sign in if it asks, then press **Retry**. Purchase dates and prices paid both come from that page.
+
 **Kindle library says to sign in to read.amazon.com.** The Kindle reader has its own sign-in. Open read.amazon.com once in the same browser, sign in, then press **Sync now**. Your books still load from Content & Devices in the meantime.
 
 **"Sign in to amazon.com."** Sign in at amazon.com in the same browser, then **Retry**. If you blocked Tampermonkey from connecting to amazon.com, allow it under the script's **Settings → XHR Security** in the Tampermonkey dashboard.

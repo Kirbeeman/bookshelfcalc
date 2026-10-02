@@ -29,7 +29,7 @@ Open **https://bookshelf.kirbee213.tv** on a computer. The first visit walks you
 ## Updates
 
 - **The site** updates itself. Open pages reload on their own when a new version is out.
-- **The sync script** updates through Tampermonkey (about once a day). When an update is waiting, a red dot appears on **Settings**; click **Update** there. If the site *needs* a newer script, it asks you to update before you can continue.
+- **The sync script** updates through Tampermonkey (about once a day). When an update is waiting, a red dot appears on **Settings**; click **Update** there. The dot goes away once you've looked at what's new. If the site *needs* a newer script, it asks you to update before you can continue.
 - **What changed:** see the [changelog](CHANGELOG.md), or **Settings → What's new**.
 - **Forcing the front-end to reload.** The front-end is the webpage itself (bookshelf.kirbee213.tv), not the sync script. It normally updates on its own, but if you've heard about a change and don't see it yet, force a fresh copy with either method:
 
