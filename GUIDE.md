@@ -23,6 +23,7 @@ Everything the calculator does, and how. For setup, see the [README](README.md).
 
 | Part | What it shows |
 | --- | --- |
+| **This year so far** | Books added since January 1 (and how many you'd added by this date last year), money spent this year, the average per month, and the total spent overall. Starts over every January 1; money is hidden until you click it. |
 | **Sync** | A box under the title showing each sync step with its own progress bar. Click it to fold it to one line; it folds itself after a clean sync. |
 | **Books** | How many books you own and how many you've finished. Point at "not counted" to see which books are left out of totals (shared, borrowed, Kindle Unlimited, samples). |
 | **Library value** | Hidden until you click it. Point at the line under it to see where the total comes from: prices you paid, today's Kindle prices, guesses, and free books. |
@@ -30,7 +31,7 @@ Everything the calculator does, and how. For setup, see the [README](README.md).
 | **Unread** | The percent of your library you've never opened. |
 | **Shelf of Shame** | Your unread books as spines on a bookcase (see below). |
 | **Shame stats** | Money spent on unread books, reading hours on the shelf, the date you'd finish at your pace, your oldest unread book and how long it has waited, and books added vs. finished in the last 12 months. |
-| **By status** | Books and pages for each status, plus spending, free/KU/Prime books and your average rating. |
+| **By status** | A small table of books and pages for each status. Below it: your shortest and longest unread books, their average length, how many are quick reads (under 200 pages), free/KU/Prime books and your average rating. |
 | **Books added per year** | Bars by purchase year, split by status. Unusually big years are cut off so the rest stay readable (the number above is exact). Below it, rings show the reading-status split; point at a year to see that year's. |
 | **Most-owned authors** | Your top authors and how many of their books are unread. |
 | **Your library** | Every book in a searchable, sortable table. |

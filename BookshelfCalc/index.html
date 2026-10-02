@@ -248,6 +248,20 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background
 .files h4{margin:0;font-size:.9rem}
 .files .note{margin:0}
 .statlist{display:flex;flex-direction:column;gap:6px;font-size:.88rem}
+/* This year: a slim strip above the summary, for anyone keeping a yearly book budget. It starts over every January 1. */
+.yearstrip{display:grid;grid-template-columns:auto repeat(4,minmax(0,1fr));align-items:center;gap:6px 22px;background:var(--paper);border:1px solid var(--rule);border-radius:10px;padding:10px 18px;margin-bottom:-14px}
+.yearstrip h3{margin:0;white-space:nowrap}.yearstrip .ys{display:flex;flex-direction:column;min-width:0;border-left:1px solid var(--rule);padding-left:14px}
+.yearstrip .v{font-family:var(--mono);font-size:1.05rem;font-weight:600;font-variant-numeric:tabular-nums}.yearstrip .l{font-size:.76rem;color:var(--muted)}
+.yearstrip .reveal{align-self:flex-start}
+@media (max-width:640px){.yearstrip{grid-template-columns:repeat(2,minmax(0,1fr))}.yearstrip h3{grid-column:1/-1}.yearstrip .ys{border-left:0;padding-left:0}}
+/* By status as a small table: books and pages in their own labeled columns */
+.sttab{width:100%;min-width:0;border-collapse:collapse;font-size:.88rem}.sttab th{position:static;background:none}.sttab th{font-family:var(--mono);font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);text-align:right;padding:0 0 4px;border-bottom:1px solid var(--rule)}
+.sttab th:first-child{text-align:left}.sttab td{padding:5px 0;border-bottom:0;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}.sttab td:first-child{text-align:left}
+.sttab td .pc{color:var(--muted);font-size:.78rem;margin-left:4px}.sttab tr.tot td{border-top:1px solid var(--rule);font-weight:600}
+.sttab i{width:9px;height:9px;border-radius:2px;display:inline-block;margin-right:7px;vertical-align:0}
+.stsub{font-family:var(--mono);font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:4px 0 -2px;border-top:1px solid var(--rule);padding-top:10px}
+.statlist .bk{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-style:italic;color:var(--muted);font-size:.82rem}
+.statlist .two{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:baseline}
 .statlist .num{white-space:nowrap}
 .statlist div{display:flex;justify-content:space-between;gap:8px}
 .bars{height:170px;min-width:0}
@@ -385,6 +399,13 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.78rem;re
     <button type="button" class="x" id="noticeClose" aria-label="Dismiss this note">×</button>
   </div>
 
+  <section class="yearstrip" aria-label="This year so far">
+    <h3 id="yrH">This year</h3>
+    <div class="ys"><span class="v" id="yrBooks">0</span><span class="l" id="yrBooksL">books added</span></div>
+    <div class="ys"><button type="button" class="reveal" data-reveal><span class="v" id="yrSpent">$0</span></button><span class="l" id="yrSpentL">spent this year</span></div>
+    <div class="ys"><button type="button" class="reveal" data-reveal><span class="v" id="yrMonth">$0</span></button><span class="l">a month, on average</span></div>
+    <div class="ys"><button type="button" class="reveal" data-reveal><span class="v" id="yrAll">$0</span></button><span class="l" id="yrAllL">spent in all</span></div>
+  </section>
   <section class="tiles" aria-label="Library summary">
     <div class="tile"><h3>Books</h3><div class="big" id="tBooks">0</div><div class="sub" id="tBooksSub"></div></div>
     <div class="tile"><h3>Library value</h3><button type="button" class="reveal" id="revealValue" aria-pressed="false"><span class="big" id="tValue">$0</span><span class="sub" id="tValueSub"></span><span class="hint" id="revealHint">Click to reveal</span></button></div>
@@ -985,12 +1006,35 @@ function renderStats() {
   $('#meterLegend').innerHTML = order.map(k => `<span><i style="background:${STATUS_COLOR[k]}"></i>${STATUS[k]} <span class="num muted">${by[k].length}</span></span>`).join('');
 
   // status list
-  $('#statusList').innerHTML = order.map(k => {
-    const pg = by[k].reduce((a,b) => a + pagesOf(b), 0);
-    return `<div><span><span class="legend"><span><i style="background:${STATUS_COLOR[k]}"></i>${STATUS[k]}</span></span></span><span class="num">${fmtInt(by[k].length)} ${by[k].length === 1 ? 'book' : 'books'} <span class="muted">· ${fmtInt(pg)} pages</span></span></div>`;
-  }).join('') + `<div style="border-top:1px solid var(--rule);padding-top:6px"><span>Spent (known prices)</span><span class="num">${mask(bs.reduce((a,b) => a + (+b.price || 0), 0))}</span></div>` +
+  // By status (#6): a small table so books and pages each have a labeled column, with each status's share of the books
+  const allBk = order.reduce((a, k) => a + by[k].length, 0), stPages = k => by[k].reduce((a, b) => a + pagesOf(b), 0);
+  const stRows = order.map(k => `<tr><td><i style="background:${STATUS_COLOR[k]}"></i>${STATUS[k]}</td><td>${fmtInt(by[k].length)}<span class="pc">${allBk ? Math.round(by[k].length / allBk * 100) : 0}%</span></td><td>${fmtInt(stPages(k))}</td></tr>`).join('');
+  // The unread pile at a glance (#11): its shortest and longest books, the average length, and how many are quick reads
+  const known = pile.filter(b => b.pages > 0).sort((a, b) => a.pages - b.pages);
+  const shortB = known[0], longB = known[known.length - 1];
+  const quick = known.filter(b => b.pages < 200).length;
+  const bookRow = (label, b) => b ? `<div class="two"><span>${label}</span><span class="bk" title="${esc(b.title)} — ${esc(b.author || '')}">${esc(b.title)}</span><span class="num">${fmtInt(b.pages)} pages</span></div>` : '';
+  $('#statusList').innerHTML = `<table class="sttab"><thead><tr><th>Status</th><th>Books</th><th>Pages</th></tr></thead><tbody>${stRows}<tr class="tot"><td>All counted</td><td>${fmtInt(allBk)}</td><td>${fmtInt(order.reduce((a, k) => a + stPages(k), 0))}</td></tr></tbody></table>` +
+    (known.length ? `<div class="stsub">Your unread books</div>` + bookRow('Shortest', shortB) + (known.length > 1 ? bookRow('Longest', longB) : '') +
+      `<div><span>Average length</span><span class="num">${fmtInt(Math.round(known.reduce((a, b) => a + b.pages, 0) / known.length))} pages</span></div>` +
+      `<div><span title="Unread books under 200 pages: an evening or two each">Quick reads (under 200 pages)</span><span class="num">${fmtInt(quick)} ${quick === 1 ? 'book' : 'books'}</span></div>` : '') +
+    `<div class="stsub">Also</div>` +
     `<div><span title="Free, Kindle Unlimited and Prime Reading books, plus books shared with you, borrowed and samples">Free, KU and Prime</span><span class="num">${fmtInt(S.books.filter(b => b.source !== 'purchase').length)} books</span></div>` +
     `<div><span>Average rating</span><span class="num">${(() => { const r = bs.filter(b => b.rating > 0); return r.length ? (r.reduce((a,b) => a + b.rating, 0) / r.length).toFixed(1) + ' ★' : '—'; })()}</span></div>`;
+  // This year (#9): books added and money spent since January 1, compared with the same point last year
+  const tnow = new Date(), cy = tnow.getFullYear(), md = tnow.toISOString().slice(5, 10);
+  const realDate = b => b.date && !b.dateEst;
+  const thisYr = bs.filter(b => realDate(b) && b.date.startsWith(cy + '-'));
+  const lastYrSoFar = bs.filter(b => realDate(b) && b.date.startsWith((cy - 1) + '-') && b.date.slice(5, 10) <= md).length;
+  const spentYr = thisYr.reduce((a, b) => a + (hasPaid(b) ? +b.price : 0), 0), unknownYr = thisYr.filter(b => b.source === 'purchase' && !hasPaid(b)).length;
+  const spentAll = bs.reduce((a, b) => a + (hasPaid(b) ? +b.price : 0), 0);
+  $('#yrH').textContent = `${cy} so far`;
+  $('#yrBooks').textContent = fmtInt(thisYr.length);
+  $('#yrBooksL').textContent = `books added${lastYrSoFar || thisYr.length ? ` · ${fmtInt(lastYrSoFar)} by now last year` : ''}`;
+  $('#yrSpent').textContent = mask(spentYr); $('#yrSpentL').textContent = 'spent this year' + (unknownYr ? ` · ${fmtInt(unknownYr)} without a known price` : '');
+  $('#yrMonth').textContent = mask(spentYr / (tnow.getMonth() + tnow.getDate() / 31));
+  $('#yrAll').textContent = mask(spentAll); $('#yrAllL').textContent = 'spent in all (known prices)';
+  ['#yrSpent', '#yrMonth', '#yrAll'].forEach(id => $(id).classList.toggle('masked', !S.showMoney));
 
   // years
   const yrs = {};
@@ -1719,7 +1763,7 @@ async function lookupBookInfo() {
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '1.49';
+const LATEST_SCRIPT = '1.50';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 let scriptVer = '';
@@ -1758,6 +1802,7 @@ const lsSet1 = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.r
 
 // ---------- what's new (shown in Settings) ----------
 const CHANGES = [
+  ['1.50', ['"This year so far" above the summary: books added and money spent this year, with a monthly average', 'By status is a small table with Books and Pages columns', 'By status shows your shortest and longest unread books, the average length and how many are quick reads']],
   ['1.49', ['No more candles on the shelf, in any theme']],
   ['1.48', ['When Content & Devices wants your password again, the sync says so and links straight to it', 'The red dot on Settings goes away once you\'ve looked at what\'s new', 'A single flower in the vase on the shelf', 'Zon theme: sync problems are readable again']],
   ['1.47', ['Second genres and tags: a Fantasy book listed under Fantasy Romance also counts as Romance, shown as bands on its spine in By genre mode', 'Amazon\'s categories show as tags under each book in Your library, with a tag filter', 'A fresh look for the bookcase: outlined books, piles lying flat, and new knick-knacks', 'Every book\'s Amazon page gets one more look in the background to fill in the tags']],

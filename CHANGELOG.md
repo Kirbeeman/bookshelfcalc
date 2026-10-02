@@ -4,16 +4,20 @@ Newest first. The latest release is described in full; earlier ones are listed b
 
 ---
 
-## v1.49 (latest)
+## v1.50 (latest)
 
-**No more candles on the shelf**
+**This year so far, and a clearer By status card**
 
-- Candles are gone from the shelf in every theme. Halloween keeps its pumpkins and potions; Cozy gets plants, a vase with a flower, book stacks and a little box.
+- **"2026 so far"** above the summary: books added this year (with the count at the same point last year), money spent this year, the average spent per month, and the total spent overall. It starts over every January 1. Money stays hidden until you reveal it.
+- **By status** is a small table: Books and Pages each have their own labeled column, with each status's share and an "All counted" total.
+- By status also shows your **unread books at a glance**: the shortest and longest (with titles), the average length, and how many are quick reads under 200 pages.
+- "Spent (known prices)" moved from By status to the new strip.
 
 ---
 
 ## Earlier versions
 
+- **v1.49** No more candles on the shelf
 - **v1.48** Clearer purchase-date sign-in, Settings dot, flower in the vase
 - **v1.47** Second genres, tags and a new bookcase look
 - **v1.46** Required script updates block the page until updated
