@@ -212,6 +212,7 @@ const lsSet1 = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.r
 
 // ---------- what's new (shown in Settings) ----------
 const CHANGES = [
+  ['1.49', ['No more candles on the shelf, in any theme']],
   ['1.48', ['When Content & Devices wants your password again, the sync says so and links straight to it', 'The red dot on Settings goes away once you\'ve looked at what\'s new', 'A single flower in the vase on the shelf', 'Zon theme: sync problems are readable again']],
   ['1.47', ['Second genres and tags: a Fantasy book listed under Fantasy Romance also counts as Romance, shown as bands on its spine in By genre mode', 'Amazon\'s categories show as tags under each book in Your library, with a tag filter', 'A fresh look for the bookcase: outlined books, piles lying flat, and new knick-knacks', 'Every book\'s Amazon page gets one more look in the background to fill in the tags']],
   ['1.46', ['An out-of-date sync script now has to be updated before the page can be used']],

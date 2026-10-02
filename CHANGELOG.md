@@ -4,20 +4,17 @@ Newest first. The latest release is described in full; earlier ones are listed b
 
 ---
 
-## v1.48 (latest)
+## v1.49 (latest)
 
-**Clearer purchase-date sign-in, Settings dot, flower in the vase**
+**No more candles on the shelf**
 
-- When Amazon wants your password again for **Content & Devices**, the sync says so and links straight to that page, instead of the general "Sign in to amazon.com" message.
-- The red dot on **Settings** goes away once you've opened Settings and pointed at (or tapped) the new part, which is outlined with a **NEW** tag.
-- The vase on the shelf holds a single flower.
-- Fixed: Prices paid no longer says "up to date" when purchase dates couldn't be read; it says "needs purchase dates".
-- Fixed: in the Zon theme, sync problems were white text on a light box, and the Retry button had no visible label.
+- Candles are gone from the shelf in every theme. Halloween keeps its pumpkins and potions; Cozy gets plants, a vase with a flower, book stacks and a little box.
 
 ---
 
 ## Earlier versions
 
+- **v1.48** Clearer purchase-date sign-in, Settings dot, flower in the vase
 - **v1.47** Second genres, tags and a new bookcase look
 - **v1.46** Required script updates block the page until updated
 - **v1.45** Optional "Shared & borrowed" tab under Your library

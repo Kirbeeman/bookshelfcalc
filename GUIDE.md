@@ -45,7 +45,7 @@ Everything the calculator does, and how. For setup, see the [README](README.md).
 - **Just bought:** books bought in the last 5 days are outlined in gold and placed first, with a *new* tag in the library table.
 - **Spine color:** switch between **Default** (mixed book-cloth colors) and **By genre**. By genre turns the shelf into a chart: the spines are split between genres in proportion to your unread books, with a key underneath.
 - **Piles:** now and then two or three books lie flat in a small pile, spines out. Just-bought books always stand upright.
-- **Decorations:** whatever space is left on the last shelf gets a bookend and a few knick-knacks that match your theme (plants, vases and book stacks, candles, or pumpkins and potions). More space means more of them. With Default spine colors, a small one also sits between books every couple of dozen spines.
+- **Decorations:** whatever space is left on the last shelf gets a bookend and a few knick-knacks that match your theme (plants, a vase with a flower, book stacks and a little box, or pumpkins and potions). More space means more of them. With Default spine colors, a small one also sits between books every couple of dozen spines.
 
 ---
 
@@ -129,7 +129,7 @@ Imports **merge** into your library; tick *Replace my current library* to start 
 
 ## Settings
 
-- **Theme:** Default (follows your device's light/dark mode), Cozy (candle-lit library), Zon (online bookstore), Halloween, or Light (always light).
+- **Theme:** Default (follows your device's light/dark mode), Cozy (warm, lamp-lit library), Zon (online bookstore), Halloween, or Light (always light).
 - **Sync script and updates:** shows your script version, an **Update** button when one is waiting, and **What's new**.
 
 | Setting | Default | What it does |
