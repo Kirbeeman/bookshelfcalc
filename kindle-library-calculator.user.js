@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.43
+// @version      1.44
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -495,7 +495,7 @@ GM_addStyle(`
   --accent:#27408b; --accent-soft:#dde3f4; --shame:#a3322a; --shame-soft:#f3dedb;
   --ok:#2f6b45; --warn:#9a6a12;
   --cloth-1:#6b3a3a; --cloth-2:#2e4a5c; --cloth-3:#5a5a2e; --cloth-4:#3b3551; --cloth-5:#7a5230; --cloth-6:#2f4f3f; --spine-ink:#f2efe6; --wood:#8a5a36; --wood-dark:#5e3b22; --wood-back:#d9cbb8;
-  --g-mystery:#2f3e5c; --g-romance:#a3445f; --g-erotica:#7b3f7a; --g-scifi:#2f6f86; --g-horror:#5b2330; --g-fiction:#7a6440; --g-history:#7a4a2a; --g-selfhelp:#3f6b4f; --g-cooking:#8a7a2e; --g-humor:#b8692a; --g-kids:#6f5aa0; --g-comics:#b0472f; --g-nonfiction:#4f5d63; --g-unknown:#8d8a84;
+  --g-mystery:#2f3e5c; --g-romance:#a3445f; --g-erotica:#7b3f7a; --g-scifi:#2f6f86; --g-fantasy:#4c6fb3; --g-horror:#5b2330; --g-fiction:#7a6440; --g-history:#7a4a2a; --g-selfhelp:#3f6b4f; --g-cooking:#8a7a2e; --g-humor:#b8692a; --g-kids:#6f5aa0; --g-comics:#b0472f; --g-nonfiction:#4f5d63; --g-unknown:#8d8a84;
   --display:"Literata", Georgia, "Times New Roman", serif;
   --body:"Literata", Georgia, serif;
   --mono:"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -505,14 +505,14 @@ GM_addStyle(`
   --accent:#9fb0ff; --accent-soft:#232c4a; --shame:#f08a7e; --shame-soft:#3a2220;
   --ok:#7fc89a; --warn:#e2b458;
   --cloth-1:#8a4a4a; --cloth-2:#3d6278; --cloth-3:#77773c; --cloth-4:#524a70; --cloth-5:#946642; --cloth-6:#3e6853; --spine-ink:#f6f3ea; --wood:#6b4529; --wood-dark:#40291a; --wood-back:#231c17;
-  --g-mystery:#41558a; --g-romance:#b8577a; --g-erotica:#a0609e; --g-scifi:#3a8aa6; --g-horror:#7a3040; --g-fiction:#93794c; --g-history:#95603a; --g-selfhelp:#4f8a63; --g-cooking:#a09033; --g-humor:#c97a35; --g-kids:#8670bd; --g-comics:#c45a3e; --g-nonfiction:#64757d; --g-unknown:#6f6c67;
+  --g-mystery:#41558a; --g-romance:#b8577a; --g-erotica:#a0609e; --g-scifi:#3a8aa6; --g-fantasy:#6587d0; --g-horror:#7a3040; --g-fiction:#93794c; --g-history:#95603a; --g-selfhelp:#4f8a63; --g-cooking:#a09033; --g-humor:#c97a35; --g-kids:#8670bd; --g-comics:#c45a3e; --g-nonfiction:#64757d; --g-unknown:#6f6c67;
   color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#121517; --paper:#1a1e21; --ink:#e7e8e3; --muted:#9aa29c; --rule:#2d3336;
   --accent:#9fb0ff; --accent-soft:#232c4a; --shame:#f08a7e; --shame-soft:#3a2220;
   --ok:#7fc89a; --warn:#e2b458;
   --cloth-1:#8a4a4a; --cloth-2:#3d6278; --cloth-3:#77773c; --cloth-4:#524a70; --cloth-5:#946642; --cloth-6:#3e6853; --spine-ink:#f6f3ea; --wood:#6b4529; --wood-dark:#40291a; --wood-back:#231c17;
-  --g-mystery:#41558a; --g-romance:#b8577a; --g-erotica:#a0609e; --g-scifi:#3a8aa6; --g-horror:#7a3040; --g-fiction:#93794c; --g-history:#95603a; --g-selfhelp:#4f8a63; --g-cooking:#a09033; --g-humor:#c97a35; --g-kids:#8670bd; --g-comics:#c45a3e; --g-nonfiction:#64757d; --g-unknown:#6f6c67;
+  --g-mystery:#41558a; --g-romance:#b8577a; --g-erotica:#a0609e; --g-scifi:#3a8aa6; --g-fantasy:#6587d0; --g-horror:#7a3040; --g-fiction:#93794c; --g-history:#95603a; --g-selfhelp:#4f8a63; --g-cooking:#a09033; --g-humor:#c97a35; --g-kids:#8670bd; --g-comics:#c45a3e; --g-nonfiction:#64757d; --g-unknown:#6f6c67;
   color-scheme:dark}
 
 /* ---------- themes (Settings → Theme). Default follows the device's light/dark setting. ---------- */
@@ -522,7 +522,7 @@ GM_addStyle(`
   --accent:#f0b25a; --accent-soft:#3b2915; --shame:#ec8a62; --shame-soft:#3e2116;
   --ok:#b5cf8f; --warn:#f0b85c;
   --cloth-1:#7d3a2c; --cloth-2:#3d5848; --cloth-3:#8b6a35; --cloth-4:#5b3b52; --cloth-5:#9b5a2c; --cloth-6:#4d3a28; --spine-ink:#f7e8c9; --wood:#6f4223; --wood-dark:#3c2211; --wood-back:#1b110a;
-  --g-mystery:#41558a; --g-romance:#b8577a; --g-erotica:#a0609e; --g-scifi:#3a8aa6; --g-horror:#7a3040; --g-fiction:#93794c; --g-history:#95603a; --g-selfhelp:#4f8a63; --g-cooking:#a09033; --g-humor:#c97a35; --g-kids:#8670bd; --g-comics:#c45a3e; --g-nonfiction:#64757d; --g-unknown:#6f6c67;
+  --g-mystery:#41558a; --g-romance:#b8577a; --g-erotica:#a0609e; --g-scifi:#3a8aa6; --g-fantasy:#6587d0; --g-horror:#7a3040; --g-fiction:#93794c; --g-history:#95603a; --g-selfhelp:#4f8a63; --g-cooking:#a09033; --g-humor:#c97a35; --g-kids:#8670bd; --g-comics:#c45a3e; --g-nonfiction:#64757d; --g-unknown:#6f6c67;
   --display:"Cormorant Garamond", "Literata", Georgia, serif;
   color-scheme:dark}
 :root[data-theme="cozy"] body{background:radial-gradient(ellipse 70% 55% at 50% -8%, rgba(255,176,84,.22), transparent 70%), radial-gradient(ellipse 50% 40% at 100% 100%, rgba(255,140,60,.07), transparent 70%), var(--bg);background-attachment:fixed}
@@ -575,7 +575,7 @@ GM_addStyle(`
   --accent:#9be35a; --accent-soft:#1d2b13; --shame:#ff8c2e; --shame-soft:#3a1f0b;
   --ok:#b98cff; --warn:#ffb347;
   --cloth-1:#4e2a72; --cloth-2:#2f5d2a; --cloth-3:#8a3f12; --cloth-4:#24202b; --cloth-5:#6a3592; --cloth-6:#46741f; --spine-ink:#f3ecff; --wood:#2c1f36; --wood-dark:#150e1b; --wood-back:#09060d;
-  --g-mystery:#41558a; --g-romance:#b8577a; --g-erotica:#a0609e; --g-scifi:#3a8aa6; --g-horror:#7a3040; --g-fiction:#93794c; --g-history:#95603a; --g-selfhelp:#4f8a63; --g-cooking:#a09033; --g-humor:#c97a35; --g-kids:#8670bd; --g-comics:#c45a3e; --g-nonfiction:#64757d; --g-unknown:#6f6c67;
+  --g-mystery:#41558a; --g-romance:#b8577a; --g-erotica:#a0609e; --g-scifi:#3a8aa6; --g-fantasy:#6587d0; --g-horror:#7a3040; --g-fiction:#93794c; --g-history:#95603a; --g-selfhelp:#4f8a63; --g-cooking:#a09033; --g-humor:#c97a35; --g-kids:#8670bd; --g-comics:#c45a3e; --g-nonfiction:#64757d; --g-unknown:#6f6c67;
   color-scheme:dark}
 /* a full moon with a few bats in the top corner, and purple fog rising from the bottom (no spiders, as ordered) */
 :root[data-theme="halloween"] body{background:
@@ -840,7 +840,7 @@ const DEMO = [
   ['Emma','Jane Austen',474,0,'2026-08-30','reading',12,'sample'],
 ].map((r,i) => ({id:'demo'+i, title:r[0], author:r[1], pages:r[2], price:r[3], date:r[4], status:r[5], progress:r[6], source:r[7], rating:r[8]||0, asin:''}));
 // Two example books count as just bought, so the example shows the "bought in the last 5 days" highlight
-{ const G = {'Moby-Dick':'fiction','Middlemarch':'fiction','War and Peace':'history','Pride and Prejudice':'romance','Frankenstein':'horror','The Count of Monte Cristo':'mystery','Crime and Punishment':'mystery','The Brothers Karamazov':'mystery','Great Expectations':'fiction','Bleak House':'fiction','Dracula':'horror','Anna Karenina':'romance','Jane Eyre':'romance','The Odyssey':'scifi','Don Quixote':'humor','The Picture of Dorian Gray':'horror','Ulysses':'fiction','Little Women':'kids','Walden':'nonfiction','Emma':'romance'};
+{ const G = {'Moby-Dick':'fiction','Middlemarch':'fiction','War and Peace':'history','Pride and Prejudice':'romance','Frankenstein':'horror','The Count of Monte Cristo':'mystery','Crime and Punishment':'mystery','The Brothers Karamazov':'mystery','Great Expectations':'fiction','Bleak House':'fiction','Dracula':'horror','Anna Karenina':'romance','Jane Eyre':'romance','The Odyssey':'fantasy','Don Quixote':'humor','The Picture of Dorian Gray':'horror','Ulysses':'fiction','Little Women':'kids','Walden':'nonfiction','Emma':'romance'};
   DEMO.forEach(b => { b.genre = G[b.title]; b.genreSrc = 'manual'; }); }
 { const daysAgo = n => new Date(Date.now() - n * 864e5).toISOString().slice(0,10); DEMO[17].date = daysAgo(3); DEMO[18].date = daysAgo(1); }
 
@@ -987,8 +987,8 @@ function statusFromProgress(p) {
 // ---------- genres ----------
 // The genre is Amazon's own: the main category in the book's Kindle Store trail ("Kindle eBooks › Romance › Paranormal").
 // The most common ones get their own spine color; everything else is "Other" but keeps its real name.
-const GENRES = {romance:'Romance', scifi:'Science Fiction & Fantasy', mystery:'Mystery, Thriller & Suspense', horror:'Horror', erotica:'Erotica', fiction:'Literature & Fiction', kids:'Teen & Young Adult', comics:'Comics, Manga & Graphic Novels', humor:'Humor & Entertainment', cooking:'Cookbooks, Food & Wine', selfhelp:'Self-Help', history:'History', nonfiction:'Other', unknown:'Unknown'};
-const GENRE_KEY = Object.fromEntries(Object.entries(GENRES).filter(([k]) => k !== 'nonfiction' && k !== 'unknown').map(([k, v]) => [v.toLowerCase(), k]));
+const GENRES = {romance:'Romance', fantasy:'Fantasy', scifi:'Science Fiction', mystery:'Mystery, Thriller & Suspense', horror:'Horror', erotica:'Erotica', fiction:'Literature & Fiction', kids:'Teen & Young Adult', comics:'Comics, Manga & Graphic Novels', humor:'Humor & Entertainment', cooking:'Cookbooks, Food & Wine', selfhelp:'Self-Help', history:'History', nonfiction:'Other', unknown:'Unknown'};
+const GENRE_KEY = {...Object.fromEntries(Object.entries(GENRES).filter(([k]) => k !== 'nonfiction' && k !== 'unknown').map(([k, v]) => [v.toLowerCase(), k])), 'science fiction & fantasy': 'scifi'};
 const cleanCat = s => String(s || '').replace(/\s*Customer Reviews.*$/i, '').replace(/\s+eBooks$/i, '').trim();
 // inf: {trail:[...crumbs], best:[...best-seller lists]} from the sync script (older scripts send cats: [crumb text, ...lists])
 function amazonGenre(inf) {
@@ -1005,16 +1005,24 @@ function amazonGenre(inf) {
   const fromLists = () => {
     const c = best.join(' | ').toLowerCase(); if (!c) return null;
     const rules = [['erotica', /erotica/], ['romance', /romance|romantic/], ['comics', /comics|graphic novel|manga/], ['kids', /young adult|\bteen/], ['cooking', /cooking|cookbook|recipes|baking/],
-      ['horror', /horror/], ['scifi', /science fiction|fantasy|dystopian/], ['mystery', /mystery|thriller|suspense|crime|detective/], ['humor', /humor|comed/], ['selfhelp', /self-help/], ['history', /\bhistory\b/], ['fiction', /fiction|literature/]];
+      ['horror', /horror/], ['fantasy', /fantasy|sword & sorcery|dragons?|fae|witch|wizard/], ['scifi', /science fiction|sci-fi|space opera|dystopian|cyberpunk|alien/], ['mystery', /mystery|thriller|suspense|crime|detective/], ['humor', /humor|comed/], ['selfhelp', /self-help/], ['history', /\bhistory\b/], ['fiction', /fiction|literature/]];
     const hit = rules.find(([, re]) => re.test(c));
     return hit ? {key: hit[0], name: GENRES[hit[0]], sub} : {key: 'nonfiction', name: best[0], sub};
   };
   if (!name) return fromLists();
   if (/^literature & fiction$/i.test(name)) { const l = fromLists(); if (l && l.key !== 'fiction' && l.key !== 'nonfiction') return l; }
   const key = GENRE_KEY[name.toLowerCase()] || 'nonfiction';
+  // Amazon files both under "Science Fiction & Fantasy"; the next step of the trail says which one (else the best-seller lists do)
+  if (key === 'scifi') {
+    const next = path[1] || '', lists = best.join(' | ');
+    const fan = /fantasy/i.test(next) || (!/science fiction/i.test(next) && /fantasy|sword & sorcery|dragon|\bfae\b|witch|wizard|magic/i.test(lists) && !/science fiction|space opera|cyberpunk|alien/i.test(lists));
+    return fan ? {key: 'fantasy', name: 'Fantasy', sub} : {key: 'scifi', name: 'Science Fiction', sub};
+  }
   return {key, name, sub};
 }
 const genreLabel = b => b.genre === 'nonfiction' && b.genreName ? b.genreName : GENRES[b.genre] || '';
+// Books read before Fantasy and Science Fiction were split get one more look at their Amazon page
+const GENRE_V = 3, needsGenre = b => b.genreSrc !== 'manual' && (!b.genreV || b.genreV < 2 || (b.genreV < GENRE_V && b.genre === 'scifi'));
 function genreStatus(msg) { const el = $('#genreStatus'); el.hidden = !msg; el.textContent = msg || ''; }
 // Genres, page counts and today's prices all come from one look at each book's Amazon page (needs the sync script)
 function lookupGenres() {
@@ -1867,7 +1875,7 @@ async function lookupBookInfo() {
   if (kpRunning || !syncOn || S.demo) return;
   const MONTH = 30 * 864e5, now = Date.now();
   const needsPrice = b => !hasPaid(b) && b.source !== 'free' && b.source !== 'sample' && (!b.kpTime || now - b.kpTime > MONTH);
-  const todo = S.books.filter(b => b.asin && (!b.infoTime || needsPrice(b) || (b.genreV !== 2 && b.genreSrc !== 'manual')))
+  const todo = S.books.filter(b => b.asin && (!b.infoTime || needsPrice(b) || needsGenre(b)))
     .sort((a, b) => (a.status === 'unread' ? 0 : 1) - (b.status === 'unread' ? 0 : 1) || (counted(a) ? 0 : 1) - (counted(b) ? 0 : 1));
   if (!todo.length) { genreStatus(''); stage('details', 'ok', 'up to date'); cardMaybeDone(); return; }
   kpRunning = true;
@@ -1888,7 +1896,7 @@ async function lookupBookInfo() {
         b.kpTime = now;
         if (!(b.pages > 0) && inf.pages) { b.pages = inf.pages; b.pagesSrc = 'amazon'; }
         if (b.genreSrc !== 'manual') { const g = amazonGenre(inf); if (g) { b.genre = g.key; b.genreName = g.name; b.genreSub = g.sub; b.genreSrc = 'amazon'; } }
-        b.genreV = 2;
+        b.genreV = GENRE_V;
         b.infoTime = now; done++;
       }
       renderStats(); renderShelf(); scheduleSave();
@@ -1901,7 +1909,7 @@ async function lookupBookInfo() {
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '1.43';
+const LATEST_SCRIPT = '1.44';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 let scriptVer = '';
@@ -1915,6 +1923,7 @@ const lsSet1 = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.r
 
 // ---------- what's new (shown in Settings) ----------
 const CHANGES = [
+  ['1.44', ['Fantasy and Science Fiction are separate genres now, each with its own spine color']],
   ['1.43', ['Setup ends with sign-in buttons for amazon.com, read.amazon.com and Goodreads', 'If the Kindle reader isn\'t signed in yet, your library comes from Content & Devices instead of failing', 'Goodreads not being linked is shown as a tip, not an error', 'The oldest-unread-book figure says plainly what it is']],
   ['1.42', ['Shelf decorations sit on the shelf: flat-bottomed pots and candle holders, potion stands, softer candle glow']],
   ['1.41', ['The empty end of the shelf gets a bookend and knick-knacks that fit the space and match your theme']],

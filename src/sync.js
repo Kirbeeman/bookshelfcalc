@@ -137,7 +137,7 @@ async function lookupBookInfo() {
   if (kpRunning || !syncOn || S.demo) return;
   const MONTH = 30 * 864e5, now = Date.now();
   const needsPrice = b => !hasPaid(b) && b.source !== 'free' && b.source !== 'sample' && (!b.kpTime || now - b.kpTime > MONTH);
-  const todo = S.books.filter(b => b.asin && (!b.infoTime || needsPrice(b) || (b.genreV !== 2 && b.genreSrc !== 'manual')))
+  const todo = S.books.filter(b => b.asin && (!b.infoTime || needsPrice(b) || needsGenre(b)))
     .sort((a, b) => (a.status === 'unread' ? 0 : 1) - (b.status === 'unread' ? 0 : 1) || (counted(a) ? 0 : 1) - (counted(b) ? 0 : 1));
   if (!todo.length) { genreStatus(''); stage('details', 'ok', 'up to date'); cardMaybeDone(); return; }
   kpRunning = true;
@@ -158,7 +158,7 @@ async function lookupBookInfo() {
         b.kpTime = now;
         if (!(b.pages > 0) && inf.pages) { b.pages = inf.pages; b.pagesSrc = 'amazon'; }
         if (b.genreSrc !== 'manual') { const g = amazonGenre(inf); if (g) { b.genre = g.key; b.genreName = g.name; b.genreSub = g.sub; b.genreSrc = 'amazon'; } }
-        b.genreV = 2;
+        b.genreV = GENRE_V;
         b.infoTime = now; done++;
       }
       renderStats(); renderShelf(); scheduleSave();
@@ -185,6 +185,7 @@ const lsSet1 = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.r
 
 // ---------- what's new (shown in Settings) ----------
 const CHANGES = [
+  ['1.44', ['Fantasy and Science Fiction are separate genres now, each with its own spine color']],
   ['1.43', ['Setup ends with sign-in buttons for amazon.com, read.amazon.com and Goodreads', 'If the Kindle reader isn\'t signed in yet, your library comes from Content & Devices instead of failing', 'Goodreads not being linked is shown as a tip, not an error', 'The oldest-unread-book figure says plainly what it is']],
   ['1.42', ['Shelf decorations sit on the shelf: flat-bottomed pots and candle holders, potion stands, softer candle glow']],
   ['1.41', ['The empty end of the shelf gets a bookend and knick-knacks that fit the space and match your theme']],
