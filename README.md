@@ -185,6 +185,8 @@ Books that don't match any of these are treated as separate books. If a book you
 
 ## Settings
 
+**Show shared and borrowed books on their own tab** (off by default): splits Your library into **My books** and **Shared & borrowed** (family-shared, Kindle Unlimited, Prime Reading, borrowed). It only changes where they're listed, not the totals.
+
 **Theme** (top of Settings): **Default** follows your device's light or dark mode, **Cozy** is a warm, candle-lit library look, **Zon** is an online-bookstore look, **Halloween** is purple, slime green and pumpkin orange with a moon and bats, and **Light** stays light even when your device is dark. It changes right away and is saved with your library.
 
 Click **Settings** to change:

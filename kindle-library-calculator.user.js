@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.44
+// @version      1.45
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -387,6 +387,7 @@ document.body.innerHTML = `<div class="wrap">
       <h2 id="shelfH">Your library</h2>
       <div class="row"><input type="search" id="q" placeholder="Search title or author" aria-label="Search"><button class="btn" id="btnXlsx" type="button">Export spreadsheet</button></div>
     </div>
+    <div class="seg libtabs" id="libTabs" role="tablist" hidden></div>
     <div class="chips" id="chips"></div>
     <div class="tablewrap">
       <table>
@@ -476,6 +477,7 @@ document.body.innerHTML = `<div class="wrap">
       <label>Currency<select id="sCur"><option>USD</option><option>GBP</option><option>EUR</option><option>CAD</option><option>AUD</option><option>JPY</option><option>INR</option><option>BRL</option><option>MXN</option></select></label>
       <label>Finished when progress reaches %<input type="number" id="sDone" min="50" max="100"></label>
       <label class="check full"><input type="checkbox" id="sBorrowed"> Count Kindle Unlimited, Prime, borrowed and family-shared books</label>
+      <label class="check full"><input type="checkbox" id="sSharedTab"> Show shared and borrowed books on their own tab under Your library</label>
       <label class="check full"><input type="checkbox" id="sSamples"> Count samples</label>
       <label class="check full"><input type="checkbox" id="sGrAll"> Include Goodreads books that aren't in my Kindle library</label>
     </div>
@@ -747,6 +749,7 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background
 /* table */
 .shelf{display:flex;flex-direction:column;gap:14px}
 .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.libtabs{align-self:flex-start;font-size:.86rem}.libtabs button{padding:6px 14px}.libtabs .c{font-family:var(--mono);opacity:.7;margin-left:6px}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{border:1px solid var(--rule);background:var(--paper);border-radius:999px;padding:4px 12px;font-size:.82rem}
 .chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
@@ -1311,19 +1314,35 @@ function renderStats() {
   $('#authors').innerHTML = top.length ? top.map(([a, v]) => `<div class="arow"><span class="name">${esc(a)}</span><span class="num muted">${v.n}${v.unread ? ` · <span style="color:var(--shame)">${v.unread} unread</span>` : ''}</span><div class="track"><i style="width:${(v.n - v.unread) / amax * 100}%;background:var(--ink)"></i><i style="width:${v.unread / amax * 100}%;background:var(--shame)"></i></div></div>`).join('') : '<p class="muted">No authors yet.</p>';
 }
 
+// Shared, Kindle Unlimited, Prime Reading and borrowed books: optionally kept on their own tab (Settings)
+const SHARED_KINDS = {shared:'Shared with me', ku:'Kindle Unlimited', prime:'Prime Reading', other:'Borrowed'};
+const isSharedKind = b => b.source in SHARED_KINDS;
 function renderShelf() {
+  const sep = !!S.settings.sharedTab;
+  if (!sep || !S.libTab) S.libTab = 'mine';
+  const nShared = S.books.filter(isSharedKind).length;
+  $('#libTabs').hidden = !sep;
+  if (sep) $('#libTabs').innerHTML = [['mine', 'My books', S.books.length - nShared], ['shared', 'Shared & borrowed', nShared]].map(([k, l, n]) => `<button type="button" role="tab" data-t="${k}" aria-pressed="${S.libTab === k}" aria-selected="${S.libTab === k}">${l}<span class="c">${fmtInt(n)}</span></button>`).join('');
+  const onShared = sep && S.libTab === 'shared';
+  const books = sep ? S.books.filter(b => onShared ? isSharedKind(b) : !isSharedKind(b)) : S.books;
   // Status chips count the same books as the charts (counted ones); books left out of totals get their own chip
-  const counts = {all:S.books.length, unread:0, reading:0, finished:0, abandoned:0, stalled:0, excluded:0};
-  S.books.forEach(b => { if (counted(b)) { counts[b.status] = (counts[b.status] || 0) + 1; if (isStalled(b)) counts.stalled++; } else counts.excluded++; });
+  const counts = {all:books.length, unread:0, reading:0, finished:0, abandoned:0, stalled:0, excluded:0};
+  books.forEach(b => { if (counted(b)) { counts[b.status] = (counts[b.status] || 0) + 1; if (isStalled(b)) counts.stalled++; } else counts.excluded++; });
   if (S.filter === 'stalled' && !counts.stalled) S.filter = 'all';
   const labels = {all:'All', unread:'Shelf of Shame', reading:'Reading', finished:'Finished', abandoned:'DNF'};
   if (counts.stalled) labels.stalled = 'Stalled 1 yr+';
   if (counts.excluded) labels.excluded = 'Not counted';
   if (S.filter === 'excluded' && !counts.excluded) S.filter = 'all';
+  if (onShared) { // on the shared tab the chips sort by how you got the book instead of by status
+    for (const k of Object.keys(labels)) delete labels[k];
+    labels.all = 'All'; counts.all = books.length;
+    for (const [k, l] of Object.entries(SHARED_KINDS)) { const n = books.filter(b => b.source === k).length; if (n) { labels['src:' + k] = l; counts['src:' + k] = n; } }
+    if (!labels[S.filter]) S.filter = 'all';
+  } else if (S.filter.startsWith('src:')) S.filter = 'all';
   $('#chips').innerHTML = Object.keys(labels).map(k => `<button class="chip" data-f="${k}" aria-pressed="${S.filter === k}">${labels[k]}<span class="c">${counts[k] || 0}</span></button>`).join('');
 
   const q = S.q.trim().toLowerCase();
-  let list = S.books.filter(b => (S.filter === 'all' || (S.filter === 'excluded' ? !counted(b) : S.filter === 'stalled' ? counted(b) && isStalled(b) : counted(b) && b.status === S.filter)) && (!q || (b.title + ' ' + b.author).toLowerCase().includes(q)));
+  let list = books.filter(b => (S.filter === 'all' || (S.filter.startsWith('src:') ? b.source === S.filter.slice(4) : (S.filter === 'excluded' ? !counted(b) : S.filter === 'stalled' ? counted(b) && isStalled(b) : counted(b) && b.status === S.filter))) && (!q || (b.title + ' ' + b.author).toLowerCase().includes(q)));
   const {k, dir} = S.sort;
   const rank = {unread:0, reading:1, abandoned:2, finished:3};
   list.sort((a, b) => {
@@ -1358,6 +1377,7 @@ $('#revealValue').onclick = toggleMoney;
 document.querySelectorAll('[data-reveal]').forEach(b => b.onclick = toggleMoney);
 
 // ---------- shelf interactions ----------
+$('#libTabs').addEventListener('click', e => { const t = e.target.closest('[data-t]'); if (!t) return; S.libTab = t.dataset.t; S.filter = 'all'; S.limit = 150; renderShelf(); });
 $('#chips').addEventListener('click', e => { const c = e.target.closest('[data-f]'); if (!c) return; S.filter = c.dataset.f; S.limit = 150; renderShelf(); });
 $('#q').addEventListener('input', e => { S.q = e.target.value; S.limit = 150; renderShelf(); });
 document.querySelector('thead').addEventListener('click', e => { const b = e.target.closest('button[data-k]'); if (!b) return; const k = b.dataset.k; S.sort = {k, dir: S.sort.k === k ? -S.sort.dir : (k === 'title' ? 1 : -1)}; renderShelf(); });
@@ -1423,7 +1443,7 @@ let wipeArmed = false;
 $('#btnSettings').onclick = () => {
   const s = S.settings;
   $('#sPages').value = s.defPages; $('#sPrice').value = s.defPrice; $('#sMin').value = s.minPerPage; $('#sDay').value = s.pagesPerDay;
-  $('#sCur').value = s.currency; $('#sDone').value = s.doneAt; $('#sBorrowed').checked = s.borrowed; $('#sSamples').checked = s.samples; $('#sGrAll').checked = !!s.grAll;
+  $('#sCur').value = s.currency; $('#sDone').value = s.doneAt; $('#sBorrowed').checked = s.borrowed; $('#sSharedTab').checked = !!s.sharedTab; $('#sSamples').checked = s.samples; $('#sGrAll').checked = !!s.grAll;
   wipeArmed = false; $('#wipeConfirm').textContent = '';
   $('#dlgSettings').showModal();
 };
@@ -1451,7 +1471,7 @@ $('#setForm').addEventListener('submit', e => {
     defPages: Math.max(1, +$('#sPages').value || DEFAULTS.defPages), defPrice: Math.max(0, +$('#sPrice').value || 0),
     minPerPage: Math.max(0.2, +$('#sMin').value || DEFAULTS.minPerPage), pagesPerDay: Math.max(1, +$('#sDay').value || DEFAULTS.pagesPerDay), paceSet: true,
     currency: $('#sCur').value, spineMode: S.settings.spineMode, theme: S.settings.theme, doneAt: Math.min(100, Math.max(50, +$('#sDone').value || 90)),
-    borrowed: $('#sBorrowed').checked, samples: $('#sSamples').checked, grAll: $('#sGrAll').checked,
+    borrowed: $('#sBorrowed').checked, sharedTab: $('#sSharedTab').checked, samples: $('#sSamples').checked, grAll: $('#sGrAll').checked,
   };
   $('#dlgSettings').close(); renderAll(); scheduleSave(); toast('Settings saved');
 });
@@ -1909,7 +1929,7 @@ async function lookupBookInfo() {
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '1.44';
+const LATEST_SCRIPT = '1.45';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 let scriptVer = '';
@@ -1923,6 +1943,7 @@ const lsSet1 = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.r
 
 // ---------- what's new (shown in Settings) ----------
 const CHANGES = [
+  ['1.45', ['Optional: shared and borrowed books on their own tab under Your library (turn it on in Settings)']],
   ['1.44', ['Fantasy and Science Fiction are separate genres now, each with its own spine color']],
   ['1.43', ['Setup ends with sign-in buttons for amazon.com, read.amazon.com and Goodreads', 'If the Kindle reader isn\'t signed in yet, your library comes from Content & Devices instead of failing', 'Goodreads not being linked is shown as a tip, not an error', 'The oldest-unread-book figure says plainly what it is']],
   ['1.42', ['Shelf decorations sit on the shelf: flat-bottomed pots and candle holders, potion stands, softer candle glow']],
