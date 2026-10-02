@@ -273,6 +273,8 @@ Click **Start empty** or import something. The example books are never saved.
 
 ## Files in this repo
 
+- `src/`: the source files the site and script are built from, plus how to build and release (see `src/README.md`).
+
 | File | What it is |
 | --- | --- |
 | `index.html` | The website version, served at bookshelf.kirbee213.tv |
