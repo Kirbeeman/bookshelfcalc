@@ -234,6 +234,9 @@ The goodreads.com/kindle-calculator page stores its data separately from bookshe
 
 ## Troubleshooting
 
+**Kindle library says to sign in to read.amazon.com.**
+Amazon's Kindle reader has its own sign-in, separate from amazon.com. Open https://read.amazon.com once in the same browser, sign in if it asks, then press **Sync now**. Until then your books still come in from Amazon's Content & Devices list; only reading progress is missing.
+
 **The site doesn't show Sync now after installing the script.**
 Turn on **Allow User Scripts** (or Developer mode) for Tampermonkey in Chrome/Edge, then reload the page. Check that the Tampermonkey icon shows the script as enabled on bookshelf.kirbee213.tv. Make sure the script is version 1.2 or newer.
 
