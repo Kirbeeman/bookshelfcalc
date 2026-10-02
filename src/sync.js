@@ -158,6 +158,8 @@ async function lookupBookInfo() {
         b.kpTime = now;
         if (!(b.pages > 0) && inf.pages) { b.pages = inf.pages; b.pagesSrc = 'amazon'; }
         if (b.genreSrc !== 'manual') { const g = amazonGenre(inf); if (g) { b.genre = g.key; b.genreName = g.name; b.genreSub = g.sub; b.genreSrc = 'amazon'; } }
+        b.tags = amazonTags(inf);
+        if (b.genre2Src !== 'manual') b.genre2 = secondGenre(b.tags, b.genre);
         b.genreV = GENRE_V;
         b.infoTime = now; done++;
       }
@@ -210,6 +212,7 @@ const lsSet1 = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.r
 
 // ---------- what's new (shown in Settings) ----------
 const CHANGES = [
+  ['1.47', ['Second genres and tags: a Fantasy book listed under Fantasy Romance also counts as Romance, shown as bands on its spine in By genre mode', 'Amazon\'s categories show as tags under each book in Your library, with a tag filter', 'A fresh look for the bookcase: outlined books, piles lying flat, and new knick-knacks', 'Every book\'s Amazon page gets one more look in the background to fill in the tags']],
   ['1.46', ['An out-of-date sync script now has to be updated before the page can be used']],
   ['1.45', ['Optional: shared and borrowed books on their own tab under Your library (turn it on in Settings)']],
   ['1.44', ['Fantasy and Science Fiction are separate genres now, each with its own spine color']],

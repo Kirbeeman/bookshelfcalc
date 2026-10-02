@@ -21,4 +21,6 @@ Needs only Python 3. It writes `index.html`, `BookshelfCalc/index.html` and `kin
 
 1. Bump `@version` in `template.user.js` (open pages reload themselves when this number goes up, and people with an older script get the Update button in Settings).
 2. Add a line for it at the top of `CHANGES` in `sync.js` (shown under Settings → What's new).
-3. `python3 src/build.py`, then commit and push. GitHub Pages publishes within a couple of minutes.
+3. **Only if the release changes the sync script itself** (`template.user.js`, not just the page): set `REQUIRED_SCRIPT` in `sync.js` to the new version. Anyone on an older script then gets the "Update needed" box and can't use the page until they update. Page-only releases leave it alone; people still see the optional red dot in Settings.
+4. Update `CHANGELOG.md`: write the new version at the top with its full description, and turn the previous one into a one-line title under *Earlier versions*.
+5. `python3 src/build.py`, then commit and push. GitHub Pages publishes within a couple of minutes.

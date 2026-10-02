@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.46
+// @version      1.47
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -385,7 +385,7 @@ document.body.innerHTML = `<div class="wrap">
   <section class="shelf" aria-labelledby="shelfH">
     <div class="toolbar">
       <h2 id="shelfH">Your library</h2>
-      <div class="row"><input type="search" id="q" placeholder="Search title or author" aria-label="Search"><button class="btn" id="btnXlsx" type="button">Export spreadsheet</button></div>
+      <div class="row"><input type="search" id="q" placeholder="Search title or author" aria-label="Search"><select id="tagSel" aria-label="Filter by tag" hidden></select><button class="btn" id="btnXlsx" type="button">Export spreadsheet</button></div>
     </div>
     <div class="seg libtabs" id="libTabs" role="tablist" hidden></div>
     <div class="chips" id="chips"></div>
@@ -455,6 +455,8 @@ document.body.innerHTML = `<div class="wrap">
       <label>Added on<input type="date" id="eDate"></label>
       <label>How you got it<select id="eSource"><option value="purchase">Bought</option><option value="free">Free</option><option value="ku">Kindle Unlimited</option><option value="prime">Prime Reading</option><option value="sample">Sample</option><option value="shared">Shared with me (Family Library)</option><option value="other">Borrowed / other</option></select></label>
       <label>Genre<select id="eGenre"></select></label>
+      <label>Second genre<select id="eGenre2"></select></label>
+      <p class="etags" id="eTags" hidden></p>
       <label>Rating<select id="eRating"><option value="0">No rating</option><option value="1">★</option><option value="2">★★</option><option value="3">★★★</option><option value="4">★★★★</option><option value="5">★★★★★</option></select></label>
     </div>
     <div class="dlg-foot">
@@ -496,7 +498,7 @@ GM_addStyle(`
   --bg:#eceeea; --paper:#f7f8f5; --ink:#1b1e20; --muted:#5d6560; --rule:#cfd4ce;
   --accent:#27408b; --accent-soft:#dde3f4; --shame:#a3322a; --shame-soft:#f3dedb;
   --ok:#2f6b45; --warn:#9a6a12;
-  --cloth-1:#6b3a3a; --cloth-2:#2e4a5c; --cloth-3:#5a5a2e; --cloth-4:#3b3551; --cloth-5:#7a5230; --cloth-6:#2f4f3f; --spine-ink:#f2efe6; --wood:#8a5a36; --wood-dark:#5e3b22; --wood-back:#d9cbb8;
+  --cloth-1:#b04a32; --cloth-2:#2f6f86; --cloth-3:#a8741f; --cloth-4:#34466e; --cloth-5:#7e4f33; --cloth-6:#4c7a46; --spine-ink:#f7f1e3; --wood:#b8743c; --wood-dark:#7a4a24; --wood-back:#efe4cf;
   --g-mystery:#2f3e5c; --g-romance:#a3445f; --g-erotica:#7b3f7a; --g-scifi:#2f6f86; --g-fantasy:#4c6fb3; --g-horror:#5b2330; --g-fiction:#7a6440; --g-history:#7a4a2a; --g-selfhelp:#3f6b4f; --g-cooking:#8a7a2e; --g-humor:#b8692a; --g-kids:#6f5aa0; --g-comics:#b0472f; --g-nonfiction:#4f5d63; --g-unknown:#8d8a84;
   --display:"Literata", Georgia, "Times New Roman", serif;
   --body:"Literata", Georgia, serif;
@@ -506,14 +508,14 @@ GM_addStyle(`
   --bg:#121517; --paper:#1a1e21; --ink:#e7e8e3; --muted:#9aa29c; --rule:#2d3336;
   --accent:#9fb0ff; --accent-soft:#232c4a; --shame:#f08a7e; --shame-soft:#3a2220;
   --ok:#7fc89a; --warn:#e2b458;
-  --cloth-1:#8a4a4a; --cloth-2:#3d6278; --cloth-3:#77773c; --cloth-4:#524a70; --cloth-5:#946642; --cloth-6:#3e6853; --spine-ink:#f6f3ea; --wood:#6b4529; --wood-dark:#40291a; --wood-back:#231c17;
+  --cloth-1:#a04a36; --cloth-2:#2f7386; --cloth-3:#a37a2c; --cloth-4:#3e5285; --cloth-5:#86573a; --cloth-6:#4d7b4a; --spine-ink:#f6f3ea; --wood:#8a5630; --wood-dark:#4a2e19; --wood-back:#231c17;
   --g-mystery:#41558a; --g-romance:#b8577a; --g-erotica:#a0609e; --g-scifi:#3a8aa6; --g-fantasy:#6587d0; --g-horror:#7a3040; --g-fiction:#93794c; --g-history:#95603a; --g-selfhelp:#4f8a63; --g-cooking:#a09033; --g-humor:#c97a35; --g-kids:#8670bd; --g-comics:#c45a3e; --g-nonfiction:#64757d; --g-unknown:#6f6c67;
   color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#121517; --paper:#1a1e21; --ink:#e7e8e3; --muted:#9aa29c; --rule:#2d3336;
   --accent:#9fb0ff; --accent-soft:#232c4a; --shame:#f08a7e; --shame-soft:#3a2220;
   --ok:#7fc89a; --warn:#e2b458;
-  --cloth-1:#8a4a4a; --cloth-2:#3d6278; --cloth-3:#77773c; --cloth-4:#524a70; --cloth-5:#946642; --cloth-6:#3e6853; --spine-ink:#f6f3ea; --wood:#6b4529; --wood-dark:#40291a; --wood-back:#231c17;
+  --cloth-1:#a04a36; --cloth-2:#2f7386; --cloth-3:#a37a2c; --cloth-4:#3e5285; --cloth-5:#86573a; --cloth-6:#4d7b4a; --spine-ink:#f6f3ea; --wood:#8a5630; --wood-dark:#4a2e19; --wood-back:#231c17;
   --g-mystery:#41558a; --g-romance:#b8577a; --g-erotica:#a0609e; --g-scifi:#3a8aa6; --g-fantasy:#6587d0; --g-horror:#7a3040; --g-fiction:#93794c; --g-history:#95603a; --g-selfhelp:#4f8a63; --g-cooking:#a09033; --g-humor:#c97a35; --g-kids:#8670bd; --g-comics:#c45a3e; --g-nonfiction:#64757d; --g-unknown:#6f6c67;
   color-scheme:dark}
 
@@ -594,6 +596,13 @@ GM_addStyle(`
 :root[data-theme="light"]{color-scheme:light}
 .themesect{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}.themesect h4{margin:0;font-size:.9rem}
 .themepick{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+/* Illustrated shelf: ink outline and the dark posts of the bookcase, per theme */
+:root{--outline:#2a1e16;--post:#3b3f44}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--outline:#0b0908;--post:#2d3135}}
+:root[data-theme="dark"]{--outline:#0b0908;--post:#2d3135}
+:root[data-theme="cozy"]{--outline:#0d0805;--post:#2e1e13}
+:root[data-theme="zon"]{--outline:#2a1e16;--post:#3b3f44}
+:root[data-theme="halloween"]{--outline:#07050a;--post:#261c33}
 .themepick button{display:flex;flex-direction:column;gap:6px;align-items:flex-start;border:1px solid var(--rule);background:var(--paper);color:var(--ink);border-radius:8px;padding:8px;font:inherit;font-size:.82rem;font-weight:600;cursor:pointer;text-align:left}
 .themepick button[aria-checked="true"]{outline:2px solid var(--accent);outline-offset:1px}
 .themepick .sw{display:flex;width:100%;height:28px;border-radius:5px;overflow:hidden;border:1px solid rgba(128,128,128,.3)}
@@ -675,13 +684,29 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background
 .pill.stalled{color:var(--shame);border-color:var(--shame)}
 .pill.new{color:var(--warn);border-color:var(--warn)}
 .pile-title{font-size:2rem;color:var(--shame)}
-.bookcase{--row:176px;background:var(--wood-back);border:10px solid var(--wood);border-top-width:12px;border-radius:4px;padding:0 10px;font-size:0;line-height:var(--row);min-height:calc(var(--row) + 12px);
-  background-image:repeating-linear-gradient(to bottom,transparent 0,transparent calc(var(--row) - 12px),var(--wood) calc(var(--row) - 12px),var(--wood) calc(var(--row) - 3px),var(--wood-dark) calc(var(--row) - 3px),var(--wood-dark) var(--row));margin-top:12px}
-.spine{display:inline-flex;align-items:center;justify-content:center;vertical-align:bottom;margin-bottom:12px;height:var(--h);width:var(--w);background:var(--c);color:var(--spine-ink);border-radius:2px 2px 1px 1px;writing-mode:vertical-rl;text-orientation:mixed;font-size:.68rem;font-family:var(--mono);line-height:1.2;white-space:nowrap;overflow:hidden;padding:10px 0;
-  box-shadow:inset 0 9px 0 -6px rgba(255,255,255,.22),inset 0 -9px 0 -6px rgba(255,255,255,.22),inset 3px 0 0 rgba(255,255,255,.08),inset -3px 0 0 rgba(0,0,0,.2);transform:rotate(var(--r));transform-origin:bottom right}
+.bookcase{--row:176px;--plank-top:color-mix(in srgb,var(--wood) 70%,#fff2d6);position:relative;background:var(--wood-back);border:0 solid var(--post);border-width:12px 11px 0;border-top-color:var(--wood);border-radius:3px 3px 2px 2px;padding:0 10px;font-size:0;line-height:var(--row);min-height:var(--row);margin-top:14px;
+  box-shadow:0 0 0 2px var(--outline),inset 2px 0 0 var(--outline),inset -2px 0 0 var(--outline),inset 0 2px 0 var(--outline);
+  background-image:repeating-linear-gradient(to bottom,transparent 0 calc(var(--row) - 17px),var(--outline) calc(var(--row) - 17px) calc(var(--row) - 15px),var(--plank-top) calc(var(--row) - 15px) calc(var(--row) - 10px),var(--outline) calc(var(--row) - 10px) calc(var(--row) - 9px),var(--wood) calc(var(--row) - 9px) calc(var(--row) - 2px),var(--outline) calc(var(--row) - 2px) var(--row)),
+    repeating-linear-gradient(to bottom,rgba(0,0,0,.16) 0,transparent 14px,transparent var(--row))}
+.spine{--bd:color-mix(in srgb,var(--c) 22%,#f6e0a8);display:inline-flex;align-items:center;justify-content:center;vertical-align:bottom;margin-bottom:12px;height:var(--h);width:var(--w);color:var(--spine-ink);border:1.5px solid var(--outline);border-radius:3px 3px 1px 1px;writing-mode:vertical-rl;text-orientation:mixed;font-size:.68rem;font-family:var(--mono);line-height:1.2;white-space:nowrap;overflow:hidden;padding:22px 0;
+  background:linear-gradient(90deg,rgba(255,255,255,.2) 0 3px,transparent 3px calc(100% - 4px),rgba(0,0,0,.24) calc(100% - 4px)),var(--bands,linear-gradient(transparent,transparent)),var(--c);
+  box-shadow:3px 0 0 -1px rgba(0,0,0,.14);transform:rotate(var(--r));transform-origin:bottom right}
+.spine.s0{--bands:linear-gradient(var(--bd),var(--bd)) 0 8px/100% 4px no-repeat,linear-gradient(var(--bd),var(--bd)) 0 calc(100% - 8px)/100% 4px no-repeat}
+.spine.s1{--bands:linear-gradient(var(--bd),var(--bd)) 0 9px/100% 7px no-repeat,linear-gradient(var(--bd),var(--bd)) 0 calc(100% - 9px)/100% 2px no-repeat}
+.spine.s2{--bands:linear-gradient(var(--bd),var(--bd)) 0 6px/100% 2px no-repeat,linear-gradient(var(--bd),var(--bd)) 0 11px/100% 2px no-repeat,linear-gradient(var(--bd),var(--bd)) 0 calc(100% - 6px)/100% 2px no-repeat,linear-gradient(var(--bd),var(--bd)) 0 calc(100% - 11px)/100% 2px no-repeat}
+.spine.s3{--bands:linear-gradient(rgba(0,0,0,.28),rgba(0,0,0,.28)) 0 0/100% 15px no-repeat,linear-gradient(var(--bd),var(--bd)) 0 15px/100% 2px no-repeat}
+.spine.s4{--bands:linear-gradient(#f1e7cf,#f1e7cf) 50% 7px/62% 9px no-repeat}
+.spine.g2{--bd:var(--c2);--bands:linear-gradient(var(--bd),var(--bd)) 0 8px/100% 7px no-repeat,linear-gradient(var(--outline),var(--outline)) 0 7px/100% 9px no-repeat,linear-gradient(var(--bd),var(--bd)) 0 calc(100% - 8px)/100% 7px no-repeat,linear-gradient(var(--outline),var(--outline)) 0 calc(100% - 7px)/100% 9px no-repeat}
 .spine b{font-weight:inherit;display:block;min-inline-size:0;max-inline-size:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .spine.lean{margin-left:12px}
-.decor{display:inline-block;vertical-align:bottom;margin-bottom:12px;line-height:0;--dk-metal:#9a7a4a;--dk-leaf:#4f8a4f;--dk-pot:#b5643c;--dk-wax:#efe4c8}
+/* Books lying flat in a small pile now and then, spines out */
+.lay{display:inline-flex;flex-direction:column;align-items:flex-start;vertical-align:bottom;margin:0 4px 12px 5px;line-height:1.2}
+.lay .spine{display:flex;margin:-1.5px 0 0 var(--dx);writing-mode:horizontal-tb;width:var(--len);height:var(--th);padding:0 14px;font-size:.6rem;transform:none;
+  background:linear-gradient(rgba(255,255,255,.2) 0 2px,transparent 2px calc(100% - 3px),rgba(0,0,0,.24) calc(100% - 3px)),linear-gradient(90deg,transparent 0 6px,var(--bd) 6px 9px,transparent 9px calc(100% - 9px),var(--bd) calc(100% - 9px) calc(100% - 6px),transparent 0),var(--c)}
+.lay .spine.g2{background:linear-gradient(rgba(255,255,255,.2) 0 2px,transparent 2px calc(100% - 3px),rgba(0,0,0,.24) calc(100% - 3px)),linear-gradient(90deg,transparent 0 5px,var(--outline) 5px 6px,var(--c2) 6px 12px,var(--outline) 12px 13px,transparent 13px calc(100% - 13px),var(--outline) calc(100% - 13px) calc(100% - 12px),var(--c2) calc(100% - 12px) calc(100% - 6px),var(--outline) calc(100% - 6px) calc(100% - 5px),transparent 0),var(--c)}
+.lay .spine:first-child{margin-top:0}
+.decor{display:inline-block;vertical-align:bottom;margin-bottom:12px;line-height:0;--dk-metal:#c99a3e;--dk-leaf:#5a9a4e;--dk-leaf2:#3d7a43;--dk-leaf3:#8cbf7a;--dk-pot:#c0663a;--dk-pot2:#ece4d4;--dk-vase:#2f7f86;--dk-box:#b5462f;--dk-wax:#efe4c8}
+.decor.orn{margin:0 6px 12px}
 .decor svg{display:block;width:100%;height:100%;overflow:visible}
 :root[data-theme="halloween"] .decor{--dk-metal:#6b5590;--dk-wax:#d9d0ea}
 :root[data-theme="cozy"] .decor{--dk-metal:#b08d57}
@@ -767,6 +792,13 @@ tbody tr:hover{background:var(--bg)}
 .t-title{font-weight:600;cursor:pointer}
 .t-title:hover{text-decoration:underline}
 .t-author{color:var(--muted);font-size:.82rem}
+.t-genre{display:flex;flex-wrap:wrap;align-items:center;gap:3px 5px;margin-top:3px;font-size:.74rem;color:var(--muted)}
+.t-genre .gsw{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}.t-genre .gsw i{width:8px;height:8px;border-radius:2px;display:inline-block}
+.t-genre .plus{opacity:.7}.t-genre .gsw+.tag,.t-genre .gsw~.tag:first-of-type{margin-left:4px}
+.tag{border:1px solid var(--rule);background:none;color:var(--muted);border-radius:999px;padding:0 7px;font:inherit;font-size:.7rem;line-height:1.5;cursor:pointer;white-space:nowrap}
+.tag:hover{border-color:var(--muted);color:var(--ink)}.tag.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+#tagSel{max-width:200px}#tagSel.on{border-color:var(--accent);color:var(--accent)}
+.etags{grid-column:1/-1;margin:0;font-size:.8rem;color:var(--muted)}
 .pill{font-family:var(--mono);font-size:.7rem;border-radius:4px;padding:1px 6px;border:1px solid var(--rule);color:var(--muted);margin-left:6px;white-space:nowrap}
 .st{border-radius:5px;padding:3px 6px;font-size:.8rem;border:1px solid var(--rule)}
 .st.unread{color:var(--shame);background:var(--shame-soft);border-color:transparent}
@@ -844,7 +876,13 @@ const DEMO = [
 ].map((r,i) => ({id:'demo'+i, title:r[0], author:r[1], pages:r[2], price:r[3], date:r[4], status:r[5], progress:r[6], source:r[7], rating:r[8]||0, asin:''}));
 // Two example books count as just bought, so the example shows the "bought in the last 5 days" highlight
 { const G = {'Moby-Dick':'fiction','Middlemarch':'fiction','War and Peace':'history','Pride and Prejudice':'romance','Frankenstein':'horror','The Count of Monte Cristo':'mystery','Crime and Punishment':'mystery','The Brothers Karamazov':'mystery','Great Expectations':'fiction','Bleak House':'fiction','Dracula':'horror','Anna Karenina':'romance','Jane Eyre':'romance','The Odyssey':'fantasy','Don Quixote':'humor','The Picture of Dorian Gray':'horror','Ulysses':'fiction','Little Women':'kids','Walden':'nonfiction','Emma':'romance'};
-  DEMO.forEach(b => { b.genre = G[b.title]; b.genreSrc = 'manual'; }); }
+  const T = {'Pride and Prejudice':['Classic Romance','Regency Romance','Humorous Fiction'],'Frankenstein':['Gothic Fiction','Classic Science Fiction'],'Dracula':['Gothic Fiction','Vampire Horror'],
+    'The Count of Monte Cristo':['Historical Fiction','Classic Romance','Action & Adventure'],'Crime and Punishment':['Psychological Fiction','Russian Literature'],'The Brothers Karamazov':['Russian Literature','Philosophy'],
+    'Bleak House':['Legal Thrillers','Victorian Literature'],'Middlemarch':['Classic Romance','Victorian Literature'],'Jane Eyre':['Gothic Romance','Psychological Suspense'],'The Odyssey':['Ancient Classics','Mythology'],
+    'The Picture of Dorian Gray':['Gothic Fiction','Classic Fantasy'],'Little Women':['Coming of Age','Family Saga'],'Anna Karenina':['Classic Romance','Russian Literature'],'Moby-Dick':['Sea Adventures','American Classics'],
+    'War and Peace':['Russian Literature','Historical Fiction','War Fiction'],'Walden':['Nature Writing','Philosophy'],'Don Quixote':['Satire','Spanish Literature'],'Ulysses':['Irish Literature','Modernist Fiction'],'Great Expectations':['Coming of Age','Victorian Literature'],'Emma':['Classic Romance','Regency Romance']};
+  const G2 = {'Pride and Prejudice':'humor','Frankenstein':'scifi','The Count of Monte Cristo':'romance','Bleak House':'mystery','Middlemarch':'romance','Jane Eyre':'mystery','The Picture of Dorian Gray':'fantasy'}; // what secondGenre() makes of the tags
+  DEMO.forEach(b => { b.genre = G[b.title]; b.genreSrc = 'manual'; b.tags = T[b.title] || []; b.genre2 = G2[b.title] || ''; }); }
 { const daysAgo = n => new Date(Date.now() - n * 864e5).toISOString().slice(0,10); DEMO[17].date = daysAgo(3); DEMO[18].date = daysAgo(1); }
 
 // Earlier versions defaulted to 30 pages a day; move untouched settings to the new Average pace
@@ -858,7 +896,7 @@ const QUIP = (() => {
 })();
 const PACES = {slow: 35, average: 55, fast: 90};
 const DEFAULTS = {defPages:320, defPrice:7.99, minPerPage:1.1, pagesPerDay:55, currency:'USD', doneAt:90, borrowed:false, samples:false, grAll:false};
-const S = {showMoney:false, books: DEMO.map(b => ({...b})), settings:{...DEFAULTS}, demo:true, mode:'demo', filter:'all', q:'', sort:{k:'date', dir:-1}, limit:150};
+const S = {showMoney:false, books: DEMO.map(b => ({...b})), settings:{...DEFAULTS}, demo:true, mode:'demo', filter:'all', q:'', tag:'', sort:{k:'date', dir:-1}, limit:150};
 
 // ---------- persistence ----------
 let db = null, col = null, saved = {}, saveTimer = null, savedMeta = '';
@@ -1024,8 +1062,28 @@ function amazonGenre(inf) {
   return {key, name, sub};
 }
 const genreLabel = b => b.genre === 'nonfiction' && b.genreName ? b.genreName : GENRES[b.genre] || '';
-// Books read before Fantasy and Science Fiction were split get one more look at their Amazon page
-const GENRE_V = 3, needsGenre = b => b.genreSrc !== 'manual' && (!b.genreV || b.genreV < 2 || (b.genreV < GENRE_V && b.genre === 'scifi'));
+// Tags: every category Amazon lists the book under (best-seller lists first, then the deeper steps of its trail), minus catch-alls
+const TAG_SKIP = /^(literature & fiction|fiction|genre fiction|kindle ebooks|ebooks|books|kindle store|science fiction & fantasy|teen & young adult|.*short reads.*|kindle unlimited.*|.*\bebooks?\b.*)$/i;
+function amazonTags(inf) {
+  let trail = inf.trail, best = inf.best;
+  if (!trail && inf.cats) { const c0 = inf.cats[0] || ''; trail = c0.includes('›') ? c0.split('›').map(x => x.trim()) : []; best = c0.includes('›') ? inf.cats.slice(1) : inf.cats; }
+  trail = (trail || []).map(x => String(x || '').trim()).filter(Boolean); best = (best || []).map(cleanCat).filter(Boolean);
+  const root = trail.findIndex(x => /^kindle ebooks$|^ebooks$|^books$/i.test(x));
+  const path = root >= 0 ? trail.slice(root + 1) : trail.filter(x => !/^kindle store$/i.test(x));
+  const seen = new Set(), out = [];
+  for (const t of [...best, ...path]) { const k = t.toLowerCase(); if (!TAG_SKIP.test(t) && t.length <= 48 && !seen.has(k)) { seen.add(k); out.push(t); } }
+  return out.slice(0, 8);
+}
+// Second genre: the first tag that points at a different colored genre (a Fantasy book listed under "Fantasy Romance" gets Romance)
+const GENRE2_RULES = [['romance', /romance|romantic/], ['fantasy', /fantasy|sword & sorcery|dragons?|\bfae\b|witch|wizard/], ['scifi', /science fiction|sci-fi|space opera|dystopian|cyberpunk|alien/], ['mystery', /mystery|thriller|suspense|crime|detective/], ['horror', /horror/], ['erotica', /erotica/], ['comics', /comics|graphic novel|manga/], ['kids', /young adult|\bteen/], ['humor', /humor|comed/], ['history', /\bhistory\b/], ['cooking', /cooking|cookbook|recipes|baking/], ['selfhelp', /self-help/]];
+function secondGenre(tags, main) {
+  for (const t of tags || []) { if (/^science fiction & fantasy$/i.test(t)) continue; const lc = t.toLowerCase(), hit = GENRE2_RULES.find(([k, re]) => k !== main && re.test(lc)); if (hit) return hit[0]; }
+  return '';
+}
+const tagsShown = b => { const skip = new Set([genreLabel(b), GENRES[b.genre2] || ''].map(x => x.toLowerCase())); return (b.tags || []).filter(t => !skip.has(t.toLowerCase())); };
+const genreLine = b => genreLabel(b) + (b.genre2 && GENRES[b.genre2] ? ' + ' + GENRES[b.genre2] : '');
+// Version 4 adds tags and second genres, so every book gets one more look at its Amazon page (hand-set genres stay as they are)
+const GENRE_V = 4, needsGenre = b => !b.genreV || b.genreV < GENRE_V;
 function genreStatus(msg) { const el = $('#genreStatus'); el.hidden = !msg; el.textContent = msg || ''; }
 // Genres, page counts and today's prices all come from one look at each book's Amazon page (needs the sync script)
 function lookupGenres() {
@@ -1054,20 +1112,34 @@ document.querySelectorAll('[data-pace]').forEach(b => b.onclick = () => {
 let resizeT; window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => { renderStats(); decorShelf(); }, 150); });
 // ---------- shelf decorations: whatever space is left on the last shelf gets a bookend and a few knick-knacks ----------
 // Items are added one by one until the space runs out, so a wider gap gets more of them and a nearly full shelf gets none.
+// Drawn like the books: flat colors with an ink outline. Sizes are [width, height, svg]; leaves may hang over the shelf's front edge.
+const OL = 'stroke="var(--outline)" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke"';
+const leaf = (x, y, r, sc, c) => `<g transform="translate(${x} ${y}) rotate(${r}) scale(${sc})"><path d="M0 0C9-6 9-23 0-32C-9-23-9-6 0 0Z" fill="${c}" ${OL}/><path d="M0-4V-26" stroke="var(--outline)" stroke-opacity=".4" stroke-width="1.1" fill="none" vector-effect="non-scaling-stroke"/></g>`;
+const potLight = 'color-mix(in srgb,var(--dk-pot) 78%,#fff)';
 const DECOR = {
-  bookend: [16, 98, `<svg viewBox="0 0 16 98"><path d="M8 2h7v94H8z" fill="var(--dk-metal)"/><path d="M-14 92h29v6h-29z" fill="var(--dk-metal)"/><path d="M12 4h2v86h-2z" fill="rgba(255,255,255,.25)"/></svg>`],
-  plant: [64, 120, `<svg viewBox="0 0 64 120"><g fill="var(--dk-leaf)"><ellipse cx="32" cy="34" rx="7" ry="26"/><ellipse cx="18" cy="48" rx="6" ry="22" transform="rotate(-28 18 48)"/><ellipse cx="46" cy="48" rx="6" ry="22" transform="rotate(28 46 48)"/><ellipse cx="11" cy="66" rx="5" ry="16" transform="rotate(-55 11 66)"/><ellipse cx="53" cy="66" rx="5" ry="16" transform="rotate(55 53 66)"/></g><path d="M32 70V20" stroke="rgba(0,0,0,.18)" stroke-width="1.5"/><path d="M12 76h40l-5 44H17z" fill="var(--dk-pot)"/><path d="M9 72h46v8H9z" fill="var(--dk-pot)"/><path d="M9 79h46v2H9z" fill="rgba(0,0,0,.18)"/></svg>`],
-  succulent: [46, 62, `<svg viewBox="0 0 46 62"><g fill="var(--dk-leaf)"><ellipse cx="23" cy="20" rx="6" ry="13"/><ellipse cx="14" cy="26" rx="5" ry="11" transform="rotate(-40 14 26)"/><ellipse cx="32" cy="26" rx="5" ry="11" transform="rotate(40 32 26)"/><ellipse cx="9" cy="33" rx="4" ry="9" transform="rotate(-70 9 33)"/><ellipse cx="37" cy="33" rx="4" ry="9" transform="rotate(70 37 33)"/></g><path d="M7 36h32l-4 26H11z" fill="var(--dk-pot)"/><path d="M7 36h32v4H7z" fill="rgba(0,0,0,.15)"/></svg>`],
-  stack: [96, 54, `<svg viewBox="0 0 96 54"><rect x="4" y="38" width="88" height="16" rx="2" fill="var(--cloth-2)"/><rect x="8" y="22" width="78" height="16" rx="2" fill="var(--cloth-1)"/><rect x="2" y="6" width="84" height="16" rx="2" fill="var(--cloth-6)"/><g fill="#efe6cf"><rect x="88" y="40" width="3" height="12"/><rect x="82" y="24" width="3" height="12"/><rect x="82" y="8" width="3" height="12"/></g><g fill="rgba(255,255,255,.25)"><rect x="12" y="10" width="40" height="2"/><rect x="18" y="26" width="34" height="2"/><rect x="14" y="42" width="44" height="2"/></g></svg>`],
-  candle: [32, 96, `<svg viewBox="0 0 32 96"><defs><radialGradient id="dkGlow"><stop offset="0" stop-color="#ffc864" stop-opacity=".55"/><stop offset="1" stop-color="#ffc864" stop-opacity="0"/></radialGradient></defs><ellipse class="dk-glow" cx="16" cy="16" rx="16" ry="18" fill="url(#dkGlow)"/><path class="dk-flame" d="M16 4c4 6 6 10 6 13a6 6 0 0 1-12 0c0-3 2-7 6-13z" fill="#ffcf5a"/><path d="M16 11c2 3 3 5 3 7a3 3 0 0 1-6 0c0-2 1-4 3-7z" fill="#fff4c4"/><path d="M15.4 22h1.2v6h-1.2z" fill="#3a2a1a"/><rect x="9" y="28" width="14" height="58" rx="2" fill="var(--dk-wax)"/><path d="M9 32c3 3 3 9 1 12" stroke="rgba(255,255,255,.35)" stroke-width="2" fill="none"/><path d="M6 84h20v4l5 3v5H1v-5l5-3z" fill="var(--dk-metal)"/><path d="M6 85h20v1H6z" fill="rgba(255,255,255,.25)"/></svg>`],
-  pumpkin: [66, 60, `<svg viewBox="0 0 66 60"><path d="M33 12c1-6 4-9 8-10" stroke="#3f6b1f" stroke-width="4" fill="none" stroke-linecap="round"/><ellipse cx="18" cy="39" rx="15" ry="21" fill="#e2701c"/><ellipse cx="48" cy="39" rx="15" ry="21" fill="#e2701c"/><ellipse cx="33" cy="38" rx="15" ry="22" fill="#f58a2a"/><path d="M33 17v43M22 20c-3 12-3 26 0 38M44 20c3 12 3 26 0 38" stroke="rgba(120,50,0,.35)" stroke-width="1.5" fill="none"/></svg>`],
-  potion: [44, 80, `<svg viewBox="-2 0 44 80"><rect x="15" y="2" width="10" height="9" rx="2" fill="#8a5a36"/><path d="M15 10h10v14c9 4 13 11 13 22a18 18 0 0 1-36 0c0-11 4-18 13-22z" fill="rgba(220,210,255,.18)" stroke="rgba(220,210,255,.5)" stroke-width="1.5"/><path d="M4 46a16 16 0 0 0 32 0c0-3-1-6-2-8H6c-1 2-2 5-2 8z" fill="#9be35a"/><circle cx="14" cy="50" r="2.5" fill="rgba(255,255,255,.5)"/><circle cx="22" cy="44" r="1.6" fill="rgba(255,255,255,.5)"/><path d="M-1 60h42v6H-1z" fill="#6e4a2e"/><path d="M-1 60h42v2H-1z" fill="#8a5f3c"/><path d="M1 66h5v14H1zM34 66h5v14h-5z" fill="#5a3b24"/><path d="M-2 76h44v4H-2z" fill="#6e4a2e"/></svg>`],
+  bookend: [18, 98, `<svg viewBox="0 0 18 98"><path d="M-13 90h29v8h-29z" fill="var(--post)" ${OL}/><path d="M8 2h8v96H8z" fill="var(--post)" ${OL}/><path d="M10 5h2v84h-2z" fill="rgba(255,255,255,.22)"/></svg>`],
+  plant: [74, 122, `<svg viewBox="0 0 74 122"><path d="M17 83C6 92 4 110 9 132" stroke="var(--dk-leaf2)" stroke-width="2.4" fill="none"/>${leaf(8, 101, 205, .42, 'var(--dk-leaf)')}${leaf(7, 117, 160, .4, 'var(--dk-leaf2)')}${leaf(9, 131, 195, .36, 'var(--dk-leaf)')}
+    ${leaf(37, 82, -62, .95, 'var(--dk-leaf2)')}${leaf(37, 82, 62, .95, 'var(--dk-leaf2)')}${leaf(37, 82, -32, 1.1, 'var(--dk-leaf)')}${leaf(37, 82, 30, 1.1, 'var(--dk-leaf)')}${leaf(37, 82, -8, 1.3, 'var(--dk-leaf2)')}${leaf(37, 82, 12, 1.05, 'var(--dk-leaf)')}
+    <path d="M18 87h38l-4 35H22z" fill="var(--dk-pot)"/><path d="M45 87h11l-4 35h-9z" fill="rgba(0,0,0,.16)"/><path d="M18 87h38l-4 35H22z" fill="none" ${OL}/><rect x="14" y="79" width="46" height="10" rx="2" fill="${potLight}" ${OL}/></svg>`],
+  succulent: [50, 62, `<svg viewBox="0 0 50 62">${leaf(25, 36, -78, .5, 'var(--dk-leaf3)')}${leaf(25, 36, 78, .5, 'var(--dk-leaf3)')}${leaf(25, 36, -42, .58, 'var(--dk-leaf)')}${leaf(25, 36, 42, .58, 'var(--dk-leaf)')}${leaf(25, 36, 0, .66, 'var(--dk-leaf3)')}
+    <path d="M10 38h30l-4 24H14z" fill="var(--dk-pot2)" ${OL}/><path d="M32 38h8l-4 24h-6z" fill="rgba(0,0,0,.1)"/><rect x="7" y="33" width="36" height="7" rx="2" fill="var(--dk-pot2)" ${OL}/></svg>`],
+  vase: [38, 70, `<svg viewBox="0 0 38 70"><rect x="13" y="22" width="12" height="18" fill="var(--dk-vase)" ${OL}/><circle cx="19" cy="51" r="17" fill="var(--dk-vase)" ${OL}/><path d="M27 37a17 17 0 0 1 0 28" stroke="rgba(0,0,0,.2)" stroke-width="5" fill="none"/><path d="M8 47a12 12 0 0 1 7-9" stroke="rgba(255,255,255,.45)" stroke-width="3" stroke-linecap="round" fill="none"/><rect x="10" y="17" width="18" height="6" rx="2" fill="var(--dk-vase)" ${OL}/></svg>`],
+  box: [40, 34, `<svg viewBox="0 0 40 34"><rect x="4" y="13" width="32" height="21" rx="2" fill="var(--dk-box)" ${OL}/><rect x="2" y="7" width="36" height="8" rx="2" fill="color-mix(in srgb,var(--dk-box) 75%,#fff)" ${OL}/><circle cx="20" cy="5" r="2.8" fill="var(--dk-metal)" ${OL}/><path d="M17 20h6v6h-6z" fill="var(--dk-metal)" ${OL}/></svg>`],
+  stack: [96, 54, `<svg viewBox="0 0 96 54"><rect x="4" y="38" width="88" height="16" rx="2" fill="var(--cloth-2)" ${OL}/><rect x="8" y="22" width="78" height="16" rx="2" fill="var(--cloth-1)" ${OL}/><rect x="2" y="6" width="84" height="16" rx="2" fill="var(--cloth-6)" ${OL}/>
+    <g fill="#f3e8cc" ${OL}><rect x="84" y="40" width="5" height="12"/><rect x="78" y="24" width="5" height="12"/><rect x="78" y="8" width="5" height="12"/></g><g fill="color-mix(in srgb,#f4dca0 70%,transparent)"><rect x="12" y="9" width="3" height="10"/><rect x="18" y="25" width="3" height="10"/><rect x="14" y="41" width="3" height="10"/><rect x="64" y="9" width="3" height="10"/><rect x="68" y="41" width="3" height="10"/></g></svg>`],
+  candle: [32, 96, `<svg viewBox="0 0 32 96"><defs><radialGradient id="dkGlow"><stop offset="0" stop-color="#ffc864" stop-opacity=".55"/><stop offset="1" stop-color="#ffc864" stop-opacity="0"/></radialGradient></defs><ellipse class="dk-glow" cx="16" cy="16" rx="16" ry="18" fill="url(#dkGlow)"/><path class="dk-flame" d="M16 4c4 6 6 10 6 13a6 6 0 0 1-12 0c0-3 2-7 6-13z" fill="#ffcf5a" ${OL}/><path d="M16 11c2 3 3 5 3 7a3 3 0 0 1-6 0c0-2 1-4 3-7z" fill="#fff4c4"/><path d="M15.4 22h1.2v6h-1.2z" fill="#3a2a1a"/><rect x="9" y="28" width="14" height="58" rx="2" fill="var(--dk-wax)" ${OL}/><path d="M11 32c3 3 3 9 1 12" stroke="rgba(0,0,0,.12)" stroke-width="2" fill="none"/><path d="M6 84h20v4l5 3v5H1v-5l5-3z" fill="var(--dk-metal)" ${OL}/></svg>`],
+  pumpkin: [66, 60, `<svg viewBox="0 0 66 60"><path d="M33 13c1-6 4-9 8-10" stroke="#3f6b1f" stroke-width="4.5" fill="none" stroke-linecap="round"/><ellipse cx="18" cy="39" rx="15" ry="20" fill="#e2701c" ${OL}/><ellipse cx="48" cy="39" rx="15" ry="20" fill="#e2701c" ${OL}/><ellipse cx="33" cy="38" rx="15" ry="21" fill="#f58a2a" ${OL}/><path d="M26 22c-3 10-3 22 0 34M40 22c3 10 3 22 0 34" stroke="rgba(120,50,0,.4)" stroke-width="1.5" fill="none"/><path d="M24 30a10 6 0 0 1 8-6" stroke="rgba(255,255,255,.4)" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg>`],
+  potion: [44, 80, `<svg viewBox="-2 0 44 80"><rect x="15" y="2" width="10" height="9" rx="2" fill="#8a5a36" ${OL}/><path d="M15 10h10v14c9 4 13 11 13 22a18 18 0 0 1-36 0c0-11 4-18 13-22z" fill="rgba(220,210,255,.18)" ${OL}/><path d="M4 46a16 16 0 0 0 32 0c0-3-1-6-2-8H6c-1 2-2 5-2 8z" fill="#9be35a"/><circle cx="14" cy="50" r="2.5" fill="rgba(255,255,255,.5)"/><circle cx="22" cy="44" r="1.6" fill="rgba(255,255,255,.5)"/><path d="M-1 60h42v6H-1z" fill="#6e4a2e" ${OL}/><path d="M1 66h5v14H1zM34 66h5v14h-5z" fill="#5a3b24" ${OL}/><path d="M-2 76h44v4H-2z" fill="#6e4a2e" ${OL}/></svg>`],
 };
-const DECOR_SETS = {halloween: ['pumpkin', 'candle', 'potion', 'pumpkin', 'candle'], cozy: ['candle', 'stack', 'plant', 'candle', 'succulent'], default: ['plant', 'stack', 'succulent', 'stack', 'plant']};
+// The last shelf's leftover space gets a bookend and these, in order; ORNAMENTS are the small things set between books now and then (Default spine colors only)
+const DECOR_SETS = {halloween: ['pumpkin', 'candle', 'potion', 'pumpkin', 'candle'], cozy: ['candle', 'stack', 'plant', 'vase', 'candle', 'succulent'], default: ['plant', 'stack', 'vase', 'succulent', 'box', 'plant']};
+const ORNAMENTS = {halloween: ['pumpkin', 'potion', 'candle'], cozy: ['candle', 'succulent', 'vase', 'box'], default: ['succulent', 'vase', 'box', 'stack']};
 function decorShelf() {
   const bc = document.querySelector('#stack .bookcase'); if (!bc) return;
-  bc.querySelectorAll('.decor').forEach(n => n.remove());
-  const spines = bc.querySelectorAll('.spine'); if (!spines.length) return;
+  bc.querySelectorAll('.decor:not(.orn)').forEach(n => n.remove());
+  const oset = ORNAMENTS[document.documentElement.dataset.theme] || ORNAMENTS.default; // a theme change swaps the ornaments too
+  bc.querySelectorAll('.orn').forEach((n, j) => { const k = oset[j % oset.length]; n.style.width = DECOR[k][0] + 'px'; n.style.height = DECOR[k][1] + 'px'; n.innerHTML = DECOR[k][2]; });
+  const spines = bc.querySelectorAll(':scope > .spine, :scope > .lay, :scope > .orn'); if (!spines.length) return;
   const last = spines[spines.length - 1].getBoundingClientRect(), box = bc.getBoundingClientRect();
   const free = Math.floor(box.right - 20 - last.right - 4); // 10px frame + 10px padding on the right
   if (free < DECOR.bookend[0] + 4) return;
@@ -1153,15 +1225,32 @@ function renderStats() {
       shown = [...shown.filter(isNew).sort((a, b) => b.date.localeCompare(a.date)), ...shown.filter(b => !isNew(b))];
     } else shown = pickOrder(pile).slice(0, SHELF);
     const cloth = n => `var(--cloth-${n % 6 + 1})`;
-    let html = '<div class="bookcase">' + shown.map((b, i) => {
-      const h = hash(b.id + b.title), p = pagesOf(b);
+    const gmode = S.settings.spineMode === 'genre';
+    const tipOf = (b, p, nw) => `${esc(b.title)} — ${esc(b.author)} · ${p} pages${genreLabel(b) ? ' · ' + esc(genreLine(b)) + (tagsShown(b).length ? '\n' + esc(tagsShown(b).slice(0, 4).join(', ')) : b.genreSub && b.genreSub !== genreLabel(b) ? ' › ' + esc(b.genreSub) : '') : ''}${nw ? ' · bought ' + b.date : ''}`;
+    // One book's spine. In By genre mode a second genre shows as two bands in its color; otherwise the bands are decoration.
+    const spineOf = (b, i, flat) => {
+      const h = hash(b.id + b.title), p = pagesOf(b), nw = isNew(b);
       const w = Math.round(Math.max(18, Math.min(46, 12 + p / 22)));
       const ht = 112 + (h % 46);
-      const r = (h % 23 === 0 && i > 0) ? -4 : 0;
-      const nw = isNew(b);
-      const lean = !nw && r !== 0;
-      return `<span class="spine${nw ? ' new' : ''}${lean ? ' lean' : ''}" style="--h:${ht}px;--w:${w}px;--r:${lean ? r : 0}deg;--c:${S.settings.spineMode === 'genre' ? `var(--g-${GENRES[b.genre] ? b.genre : 'unknown'})` : cloth(h)}" title="${esc(b.title)} — ${esc(b.author)} · ${p} pages${genreLabel(b) ? ' · ' + esc(genreLabel(b)) + (b.genreSub && b.genreSub !== genreLabel(b) ? ' › ' + esc(b.genreSub) : '') : ''}${nw ? ' · bought ' + b.date : ''}"><b>${esc(b.title)}</b></span>`;
-    }).join('') + '</div>';
+      const r = (!flat && h % 23 === 0 && i > 0) ? -4 : 0, lean = !nw && r !== 0;
+      const c = gmode ? `var(--g-${GENRES[b.genre] ? b.genre : 'unknown'})` : cloth(h);
+      const two = gmode && b.genre2 && GENRES[b.genre2] && b.genre2 !== b.genre;
+      const cls = `spine ${two ? 'g2' : gmode ? 'plain' : 's' + (h >> 3) % 5}${nw ? ' new' : ''}${lean ? ' lean' : ''}`;
+      const size = flat ? `--len:${Math.round(ht * .78)}px;--th:${Math.max(15, Math.round(w * .72))}px;--dx:${(h >> 5) % 9}px` : `--h:${ht}px;--w:${w}px;--r:${lean ? r : 0}deg`;
+      return `<span class="${cls}" style="${size};--c:${c}${two ? `;--c2:var(--g-${b.genre2})` : ''}" title="${tipOf(b, p, nw)}"><b>${esc(b.title)}</b></span>`;
+    };
+    // Now and then two or three books lie flat in a little pile, like a real shelf (never the just-bought ones)
+    let html = '<div class="bookcase">';
+    for (let i = 0; i < shown.length; i++) {
+      const b = shown[i], h = hash(b.id + b.title);
+      if (i > 2 && h % 11 === 0 && !isNew(b)) {
+        const n = 2 + (h >> 4) % 2, seg = shown.slice(i, i + n), cut = seg.findIndex(isNew), pile2 = cut < 0 ? seg : seg.slice(0, cut);
+        if (pile2.length >= 2) { html += `<span class="lay">${pile2.map(x => spineOf(x, i, true)).join('')}</span>`; i += pile2.length - 1; continue; }
+      }
+      html += spineOf(b, i, false);
+      if (!gmode && i % 23 === 11 && i < shown.length - 3) { const set = ORNAMENTS[document.documentElement.dataset.theme] || ORNAMENTS.default, k = set[(i / 23 | 0) % set.length]; html += `<span class="decor orn" aria-hidden="true" style="width:${DECOR[k][0]}px;height:${DECOR[k][1]}px">${DECOR[k][2]}</span>`; }
+    }
+    html += '</div>';
     const gl = $('#genreLegend');
     if (S.settings.spineMode === 'genre') {
       const cnt = {}; pile.forEach(b => { const g = GENRES[b.genre] ? b.genre : 'unknown'; cnt[g] = (cnt[g] || 0) + 1; });
@@ -1341,8 +1430,15 @@ function renderShelf() {
   } else if (S.filter.startsWith('src:')) S.filter = 'all';
   $('#chips').innerHTML = Object.keys(labels).map(k => `<button class="chip" data-f="${k}" aria-pressed="${S.filter === k}">${labels[k]}<span class="c">${counts[k] || 0}</span></button>`).join('');
 
+  // Tag filter: every tag in this tab, most-used first; a tag click in the table picks it too
+  const tc = {}; books.forEach(b => (b.tags || []).forEach(t => { tc[t] = (tc[t] || 0) + 1; }));
+  const tlist = Object.keys(tc).sort((a, b) => tc[b] - tc[a] || a.localeCompare(b));
+  if (S.tag && !tc[S.tag]) S.tag = '';
+  $('#tagSel').hidden = !tlist.length;
+  $('#tagSel').innerHTML = '<option value="">All tags</option>' + tlist.map(t => `<option value="${esc(t)}"${t === S.tag ? ' selected' : ''}>${esc(t)} (${tc[t]})</option>`).join('');
+  $('#tagSel').classList.toggle('on', !!S.tag);
   const q = S.q.trim().toLowerCase();
-  let list = books.filter(b => (S.filter === 'all' || (S.filter.startsWith('src:') ? b.source === S.filter.slice(4) : (S.filter === 'excluded' ? !counted(b) : S.filter === 'stalled' ? counted(b) && isStalled(b) : counted(b) && b.status === S.filter))) && (!q || (b.title + ' ' + b.author).toLowerCase().includes(q)));
+  let list = books.filter(b => (!S.tag || (b.tags || []).includes(S.tag)) && (S.filter === 'all' || (S.filter.startsWith('src:') ? b.source === S.filter.slice(4) : (S.filter === 'excluded' ? !counted(b) : S.filter === 'stalled' ? counted(b) && isStalled(b) : counted(b) && b.status === S.filter))) && (!q || (b.title + ' ' + b.author).toLowerCase().includes(q)));
   const {k, dir} = S.sort;
   const rank = {unread:0, reading:1, abandoned:2, finished:3};
   list.sort((a, b) => {
@@ -1359,7 +1455,7 @@ function renderShelf() {
     const pr = hasPaid(b) ? fmtMoney(+b.price) : b.kp != null && b.source !== 'free' ? `<span class="est" title="Today's Kindle price (not what you paid)">now ${fmtMoney(b.kp)}</span>` : (b.source === 'purchase' ? `<span class="est" title="Guess from Settings">~${fmtMoney(S.settings.defPrice)}</span>` : '—');
     const pg = b.pages > 0 ? fmtInt(b.pages) : `<span class="est">~${S.settings.defPages}</span>`;
     return `<tr data-id="${esc(b.id)}">
-      <td style="min-width:220px"><div class="t-title" data-edit="${esc(b.id)}" tabindex="0">${esc(b.title)}${src}</div><div class="t-author">${esc(b.author || '')}</div></td>
+      <td style="min-width:220px"><div class="t-title" data-edit="${esc(b.id)}" tabindex="0">${esc(b.title)}${src}</div><div class="t-author">${esc(b.author || '')}</div>${b.genre && b.genre !== 'unknown' ? `<div class="t-genre"><span class="gsw"><i style="background:var(--g-${GENRES[b.genre] ? b.genre : 'unknown'})"></i>${esc(genreLabel(b))}</span>${b.genre2 && GENRES[b.genre2] ? `<span class="plus">+</span><span class="gsw"><i style="background:var(--g-${b.genre2})"></i>${esc(GENRES[b.genre2])}</span>` : ''}${tagsShown(b).map(t => `<button type="button" class="tag${t === S.tag ? ' on' : ''}" data-tag="${esc(t)}">${esc(t)}</button>`).join('')}</div>` : ''}</td>
       <td><select class="st ${b.status}" data-st="${esc(b.id)}" aria-label="Status">${Object.entries(STATUS).map(([v,l]) => `<option value="${v}"${v === b.status ? ' selected' : ''}>${l}</option>`).join('')}</select></td>
       <td><div class="prog"><div class="track"><i style="width:${b.progress || 0}%"></i></div><span class="num muted" style="font-size:.75rem">${Math.round(b.progress || 0)}%</span></div></td>
       <td class="r num">${pg}</td>
@@ -1380,6 +1476,7 @@ document.querySelectorAll('[data-reveal]').forEach(b => b.onclick = toggleMoney)
 $('#libTabs').addEventListener('click', e => { const t = e.target.closest('[data-t]'); if (!t) return; S.libTab = t.dataset.t; S.filter = 'all'; S.limit = 150; renderShelf(); });
 $('#chips').addEventListener('click', e => { const c = e.target.closest('[data-f]'); if (!c) return; S.filter = c.dataset.f; S.limit = 150; renderShelf(); });
 $('#q').addEventListener('input', e => { S.q = e.target.value; S.limit = 150; renderShelf(); });
+$('#tagSel').addEventListener('change', e => { S.tag = e.target.value; S.limit = 150; renderShelf(); });
 document.querySelector('thead').addEventListener('click', e => { const b = e.target.closest('button[data-k]'); if (!b) return; const k = b.dataset.k; S.sort = {k, dir: S.sort.k === k ? -S.sort.dir : (k === 'title' ? 1 : -1)}; renderShelf(); });
 $('#showMore').addEventListener('click', () => { S.limit += 300; renderShelf(); });
 $('#rows').addEventListener('change', e => {
@@ -1391,7 +1488,7 @@ $('#rows').addEventListener('change', e => {
   if (b.status === 'unread') b.progress = 0;
   leaveDemoForEdit(); renderAll(); scheduleSave();
 });
-$('#rows').addEventListener('click', e => { const t = e.target.closest('[data-edit]'); if (t) openEdit(t.dataset.edit); });
+$('#rows').addEventListener('click', e => { const g = e.target.closest('[data-tag]'); if (g) { S.tag = S.tag === g.dataset.tag ? '' : g.dataset.tag; S.limit = 150; renderShelf(); return; } const t = e.target.closest('[data-edit]'); if (t) openEdit(t.dataset.edit); });
 $('#rows').addEventListener('keydown', e => { const t = e.target.closest('[data-edit]'); if (t && e.key === 'Enter') openEdit(t.dataset.edit); });
 function leaveDemoForEdit() { /* edits to the example library stay on this page only */ }
 
@@ -1407,6 +1504,9 @@ function openEdit(id) {
   $('#eSource').value = b.source || 'purchase'; $('#eRating').value = b.rating || 0;
   $('#eGenre').innerHTML = '<option value="">Look up automatically</option>' + Object.entries(GENRES).filter(([k]) => k !== 'unknown').map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
   $('#eGenre').value = b.genreSrc === 'manual' ? b.genre : '';
+  $('#eGenre2').innerHTML = '<option value="">Look up automatically</option><option value="none">None</option>' + Object.entries(GENRES).filter(([k]) => k !== 'unknown' && k !== 'nonfiction').map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  $('#eGenre2').value = b.genre2Src === 'manual' ? (b.genre2 || 'none') : '';
+  $('#eTags').hidden = !(b.tags && b.tags.length); $('#eTags').textContent = b.tags && b.tags.length ? 'Amazon lists it under: ' + b.tags.join(', ') : '';
   $('#eDelete').hidden = !editing; delArmed = false; $('#eConfirm').textContent = '';
   $('#dlgEdit').showModal();
 }
@@ -1424,8 +1524,11 @@ $('#editForm').addEventListener('submit', e => {
     ...(editing && String($('#ePrice').value) !== String(editing.price ?? '') ? {priceManual: true} : {}),
     source: $('#eSource').value, rating: +$('#eRating').value, lock: true,
     ...(editing && $('#eSource').value !== editing.source ? {sourceManual: true} : {}),
-    ...($('#eGenre').value ? {genre: $('#eGenre').value, genreSrc: 'manual'} : (editing && editing.genreSrc === 'manual' ? {genre: '', genreSrc: ''} : {})),
+    ...($('#eGenre').value ? {genre: $('#eGenre').value, genreSrc: 'manual'} : (editing && editing.genreSrc === 'manual' ? {genre: '', genreSrc: '', genreV: 0} : {})),
   };
+  // Second genre: picked by hand (or None), or worked out again from Amazon's tags for whatever the main genre is now
+  const g2 = $('#eGenre2').value, mainG = data.genre !== undefined ? data.genre : editing && editing.genre;
+  Object.assign(data, g2 ? {genre2: g2 === 'none' ? '' : g2, genre2Src: 'manual'} : {genre2: secondGenre(editing && editing.tags, mainG), genre2Src: ''});
   if (!data.title) return;
   if (editing) Object.assign(editing, data);
   else { leaveDemo(true); S.books.unshift({id: uid(), ...data}); }
@@ -1735,13 +1838,13 @@ ${rows.map((row, i) => `<row r="${i + 2}">${row.map((v, c) => cell(v, i + 2, c))
 }
 const SOURCE_NAME = {purchase:'Bought', free:'Free', ku:'Kindle Unlimited', prime:'Prime Reading', sample:'Sample', shared:'Family Library', other:'Borrowed / other'};
 function libraryXlsx() {
-  const header = ['Title', 'Author', 'Status', 'Progress %', 'Pages', 'Price paid', 'Kindle price today', 'Purchase date', 'How you got it', 'Genre', 'Rating', 'Counted in totals', 'ASIN'];
+  const header = ['Title', 'Author', 'Status', 'Progress %', 'Pages', 'Price paid', 'Kindle price today', 'Purchase date', 'How you got it', 'Genre', 'Second genre', 'Tags', 'Rating', 'Counted in totals', 'ASIN'];
   const rows = [...S.books].sort((a, b) => (a.title || '').localeCompare(b.title || '')).map(b => [
     b.title || '', b.author || '', STATUS[b.status] || b.status || '', Math.round(b.progress || 0), b.pages > 0 ? b.pages : null,
     hasPaid(b) ? {money: +b.price} : null, b.kp != null ? {money: b.kp} : null, /^\d{4}-\d{2}-\d{2}$/.test(b.date || '') ? {date: b.date} : null,
-    SOURCE_NAME[b.source] || b.source || '', b.genre && b.genre !== 'unknown' ? genreLabel(b) + (b.genreSub && b.genreSub !== genreLabel(b) ? ' › ' + b.genreSub : '') : '', b.rating || null, counted(b) ? 'Yes' : 'No', b.asin || '',
+    SOURCE_NAME[b.source] || b.source || '', b.genre && b.genre !== 'unknown' ? genreLabel(b) + (b.genreSub && b.genreSub !== genreLabel(b) ? ' › ' + b.genreSub : '') : '', GENRES[b.genre2] || '', (b.tags || []).join(', '), b.rating || null, counted(b) ? 'Yes' : 'No', b.asin || '',
   ]);
-  return buildXlsx(header, rows, [46, 24, 11, 11, 8, 11, 13, 14, 18, 20, 8, 10, 13]);
+  return buildXlsx(header, rows, [46, 24, 11, 11, 8, 11, 13, 14, 18, 20, 16, 40, 8, 10, 13]);
 }
 async function saveFile(name, data, mime, okMsg) {
   try {
@@ -1916,6 +2019,8 @@ async function lookupBookInfo() {
         b.kpTime = now;
         if (!(b.pages > 0) && inf.pages) { b.pages = inf.pages; b.pagesSrc = 'amazon'; }
         if (b.genreSrc !== 'manual') { const g = amazonGenre(inf); if (g) { b.genre = g.key; b.genreName = g.name; b.genreSub = g.sub; b.genreSrc = 'amazon'; } }
+        b.tags = amazonTags(inf);
+        if (b.genre2Src !== 'manual') b.genre2 = secondGenre(b.tags, b.genre);
         b.genreV = GENRE_V;
         b.infoTime = now; done++;
       }
@@ -1929,7 +2034,7 @@ async function lookupBookInfo() {
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '1.46';
+const LATEST_SCRIPT = '1.47';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 let scriptVer = '';
@@ -1968,6 +2073,7 @@ const lsSet1 = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.r
 
 // ---------- what's new (shown in Settings) ----------
 const CHANGES = [
+  ['1.47', ['Second genres and tags: a Fantasy book listed under Fantasy Romance also counts as Romance, shown as bands on its spine in By genre mode', 'Amazon\'s categories show as tags under each book in Your library, with a tag filter', 'A fresh look for the bookcase: outlined books, piles lying flat, and new knick-knacks', 'Every book\'s Amazon page gets one more look in the background to fill in the tags']],
   ['1.46', ['An out-of-date sync script now has to be updated before the page can be used']],
   ['1.45', ['Optional: shared and borrowed books on their own tab under Your library (turn it on in Settings)']],
   ['1.44', ['Fantasy and Science Fiction are separate genres now, each with its own spine color']],
