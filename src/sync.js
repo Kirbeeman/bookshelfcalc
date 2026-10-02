@@ -16,12 +16,12 @@ function enableSync() {
   setSync('Connected to the sync script');
   wizConnected();
   renderScriptSect();
-  if (!document.getElementById('dlgWiz')?.open) runSync(false); // mid-setup, the last setup step starts the sync once they've signed in
+  if (!document.getElementById('dlgWiz')?.open && !document.getElementById('dlgForce')?.open) runSync(false); // no syncing with an out-of-date script // mid-setup, the last setup step starts the sync once they've signed in
 }
 window.addEventListener('message', e => {
   const d = e.data;
   if (!d || d.klc !== 1 || (e.origin && e.origin !== location.origin && location.origin !== 'null')) return;
-  if (d.type === 'ready') { enableSync(); checkScriptVersion(d.version); }
+  if (d.type === 'ready') { checkScriptVersion(d.version); enableSync(); }
   else if (d.type === 'progress') { syncProgress(d.msg); if (bridgeWaiters) bridgeWaiters.poke(); }
   else if (d.type === 'binfoResult' && kpWaiters[d.id]) { const w = kpWaiters[d.id]; delete kpWaiters[d.id]; try { w(JSON.parse(d.data)); } catch { w(null); } }
   else if (d.type === 'result' && bridgeWaiters) { const w = bridgeWaiters; bridgeWaiters = null; try { w.resolve(JSON.parse(d.data)); } catch (err) { w.reject(err); } }
@@ -42,7 +42,7 @@ function startSync() {
     renderScriptSect();
   }, resume === 'check' ? 0 : 1500));
   setInterval(checkPageUpdate, 30 * 60000); setTimeout(checkPageUpdate, 5000);
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') return; if (ssGet('klc-updating')) { ssSet('klc-updating', ''); pendingReload = true; } tryReload(); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') return; if (document.getElementById('dlgForce')?.open && ssGet('klc-updating')) { location.reload(); return; } if (ssGet('klc-updating')) { ssSet('klc-updating', ''); pendingReload = true; } tryReload(); });
   if (ssGet('klc-updated-from')) { ssSet('klc-updated-from', ''); lsSet1('klc-unseen', '1'); setTimeout(() => toast(`Updated to version ${LATEST_SCRIPT}. Settings shows what's new.`), 800); }
   refreshDot();
 }
@@ -175,7 +175,32 @@ const LATEST_SCRIPT = '__SCRIPT_VERSION__';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 let scriptVer = '';
-function checkScriptVersion(v) { scriptVer = v || ''; renderScriptSect(); refreshDot(); }
+// The oldest sync script this page works with. Raise it only when a release changes the script itself;
+// page-only releases leave it alone, so people aren't stopped for updates that don't touch their script.
+const REQUIRED_SCRIPT = '1.43';
+function checkScriptVersion(v) { scriptVer = v || ''; renderScriptSect(); refreshDot(); if (v && verLess(v, REQUIRED_SCRIPT)) forceUpdate(v); else if (v && document.getElementById('dlgForce')?.open) { document.getElementById('dlgForce').close(); ssSet('klc-updating', ''); } }
+// An out-of-date script blocks the page until it's updated: no close button, Esc does nothing, clicks outside do nothing
+function forceUpdate(v) {
+  let d = $('#dlgForce');
+  if (!d) {
+    d = document.createElement('dialog'); d.id = 'dlgForce'; d.className = 'wizdlg forcedlg';
+    d.addEventListener('cancel', e => e.preventDefault());
+    document.body.append(d);
+  }
+  const back = ssGet('klc-updating');
+  d.innerHTML = `<div class="dlg wiz">
+    <div class="forceicon" aria-hidden="true">⟳</div>
+    <h2>${back ? 'Almost there' : 'Update needed'}</h2>
+    <p>${back ? `This page still sees version <b>${esc(v)}</b>. In the Tampermonkey tab that opened, press <b>Update</b>, then come back here.`
+      : `Your sync script is version <b>${esc(v)}</b>, and this page needs <b>${REQUIRED_SCRIPT}</b> or newer to sync correctly. It takes about ten seconds and keeps all your books and settings.`}</p>
+    <ol class="wlist"><li>Click <b>Update script</b>. Tampermonkey opens in a new tab.</li><li>Press <b>Update</b> there.</li><li>Come back to this tab. It reloads by itself.</li></ol>
+    <div class="row" style="justify-content:center;gap:10px"><a class="btn primary" href="${SCRIPT_URL}" target="_blank" rel="noopener" id="forceGo">Update script</a>${back ? '<button type="button" class="btn" id="forceRe">Check again</button>' : ''}</div>
+    <details class="news"><summary>Tampermonkey didn't open?</summary><p>Click the Tampermonkey icon in your browser's toolbar → <b>Utilities</b> → <b>Check for userscript updates</b>, then reload this page.</p></details>
+  </div>`;
+  $('#forceGo').onclick = () => ssSet('klc-updating', '1');
+  const re = $('#forceRe'); if (re) re.onclick = () => location.reload();
+  if (!d.open) d.showModal();
+}
 
 // ---------- small storage helpers (storage can be blocked; nothing here may throw) ----------
 const ssGet = k => { try { return sessionStorage.getItem(k) || ''; } catch { return ''; } };
@@ -185,6 +210,7 @@ const lsSet1 = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.r
 
 // ---------- what's new (shown in Settings) ----------
 const CHANGES = [
+  ['1.46', ['An out-of-date sync script now has to be updated before the page can be used']],
   ['1.45', ['Optional: shared and borrowed books on their own tab under Your library (turn it on in Settings)']],
   ['1.44', ['Fantasy and Science Fiction are separate genres now, each with its own spine color']],
   ['1.43', ['Setup ends with sign-in buttons for amazon.com, read.amazon.com and Goodreads', 'If the Kindle reader isn\'t signed in yet, your library comes from Content & Devices instead of failing', 'Goodreads not being linked is shown as a tip, not an error', 'The oldest-unread-book figure says plainly what it is']],
@@ -428,6 +454,7 @@ function wizGo(step) {
 .wiz .wlist.signin{list-style:none;padding:0;gap:8px}.wiz .wlist.signin li{display:grid;grid-template-columns:160px 1fr;gap:12px;align-items:center;font-size:.86rem;color:var(--muted)}.wiz .wlist.signin .btn{text-align:center}
 .warnline{font-size:.84rem;border-left:3px solid var(--warn);padding:6px 10px;background:var(--bg);border-radius:0 6px 6px 0;margin-top:6px}.warnline a{color:inherit}
 .wizdlg:focus,.wiz :focus:not(:focus-visible){outline:none}.wiz a.btn{text-decoration:none}
+.forcedlg::backdrop{background:rgba(0,0,0,.28)}.forcedlg{border:1px solid var(--rule);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.45);background:var(--paper);color:var(--ink)}.forceicon{font-size:2rem;line-height:1;color:var(--accent)}
 .wizdlg{max-width:min(560px,calc(100vw - 32px));width:100%}
 .wiz{text-align:center;display:flex;flex-direction:column;gap:14px}.wiz h2{font-size:1.4rem}.wiz p{margin:0}
 .wiz .count{font-family:var(--mono);font-size:.72rem;color:var(--muted);letter-spacing:.08em;margin-top:-6px}
