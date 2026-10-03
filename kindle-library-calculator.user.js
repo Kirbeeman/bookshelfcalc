@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kindle Library Calculator
 // @namespace    kindle-library-calculator
-// @version      1.51
+// @version      1.52
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -925,27 +925,6 @@ const lsGet = () => { try { return JSON.parse(GM_getValue(LS, 'null')); } catch 
 const lsSet = v => { try { GM_setValue(LS, JSON.stringify(v)); return true; } catch { return false; } };
 
 async function initStore() {
-  try {
-    if (window.pageHost?.use) {
-      db = await window.pageHost.use('db');
-      const user = db ? await window.pageHost.use('user') : null;
-      const id = user ? await user.id() : null;
-      const canWrite = user ? await user.can('data.write') : null;
-      if (db && id && canWrite !== false) {
-        col = db.collection('data/users/' + id);
-        const snap = await col.get();
-        const docs = {}; snap.docs.forEach(d => docs[d.id] = d.data());
-        if (docs.meta?.settings) S.settings = migrateSettings({...DEFAULTS, ...docs.meta.settings});
-        savedMeta = JSON.stringify(docs.meta || {});
-        const chunks = Object.keys(docs).filter(k => /^c\d+$/.test(k)).sort((a,b) => +a.slice(1) - +b.slice(1));
-        const books = [];
-        chunks.forEach(k => { saved[k] = JSON.stringify(docs[k].books || []); books.push(...(docs[k].books || [])); });
-        S.mode = 'db';
-        if (books.length || docs.meta?.started) { S.books = books; S.demo = false; }
-        renderAll(); return;
-      }
-    }
-  } catch (e) { console.warn('db unavailable', e); db = null; col = null; }
   const local = lsGet();
   S.mode = 'local';
   if (local) { S.books = local.books || []; S.settings = migrateSettings({...DEFAULTS, ...(local.settings || {})}); S.demo = false; }
@@ -994,7 +973,7 @@ function setStore(state, msg) {
   if (S.demo) sp.textContent = 'Example library · not saved';
   else if (state === 'saving') sp.textContent = 'Saving…';
   else if (state === 'error') { sp.textContent = msg; el.className = 'store local'; }
-  else sp.textContent = S.mode === 'db' ? `Saved to your online account · ${S.books.length} books` : 'Saved in this browser only';
+  else sp.textContent = 'Saved in this browser only';
   $('#demoBanner').hidden = !S.demo;
 }
 function leaveDemo(clear) {
@@ -1892,10 +1871,6 @@ function libraryXlsx() {
   return buildXlsx(header, rows, [46, 24, 11, 11, 8, 11, 13, 14, 18, 20, 16, 40, 8, 10, 13]);
 }
 async function saveFile(name, data, mime, okMsg) {
-  try {
-    const dl = window.pageHost?.use ? await window.pageHost.use('downloads') : null;
-    if (dl) { await dl.save({filename: name, data}); toast(okMsg); return; }
-  } catch (e) { if (e?.code === 'declined') return; }
   try { const u = URL.createObjectURL(new Blob([data], {type: mime})); const l = document.createElement('a'); l.href = u; l.download = name; document.body.appendChild(l); l.click(); l.remove(); setTimeout(() => URL.revokeObjectURL(u), 5000); toast(okMsg); }
   catch { toast('Downloads are not available here'); }
 }
@@ -2079,7 +2054,7 @@ async function lookupBookInfo() {
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '1.51';
+const LATEST_SCRIPT = '1.52';
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 let scriptVer = '';
@@ -2123,6 +2098,7 @@ const lsSet1 = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.r
 
 // ---------- what's new (shown in Settings) ----------
 const CHANGES = [
+  ['1.52', ['Behind-the-scenes cleanup: leftover code from an older way of hosting the page is gone. Nothing changes for you']],
   ['1.51', ['The bottom of Settings shows which version of the app and of the sync script you have', 'Clicking outside Settings closes it']],
   ['1.50', ['"This year so far" above the summary: books added and money spent this year, with a monthly average', 'By status is a small table with Books and Pages columns', 'By status shows your shortest and longest unread books, the average length and how many are quick reads']],
   ['1.49', ['No more candles on the shelf, in any theme']],
@@ -2400,10 +2376,6 @@ function wizGo(step) {
 $('#btnExport').onclick = async () => {
   const data = JSON.stringify({app:'kindle-library-calculator', exported:new Date().toISOString(), settings:S.settings, books:S.books}, null, 1);
   const name = `kindle-library-${new Date().toISOString().slice(0,10)}.json`;
-  try {
-    const dl = window.pageHost?.use ? await window.pageHost.use('downloads') : null;
-    if (dl) { await dl.save({filename:name, data}); toast('Backup saved'); return; }
-  } catch (e) { if (e?.code === 'declined') return; }
   try { const u = URL.createObjectURL(new Blob([data], {type:'application/json'})); const l = document.createElement('a'); l.href = u; l.download = name; document.body.appendChild(l); l.click(); l.remove(); setTimeout(() => URL.revokeObjectURL(u), 5000); toast('Backup downloaded'); return; } catch {}
   try { await navigator.clipboard.writeText(data); toast('Backup copied to clipboard'); } catch { toast('Downloads are not available here'); }
 };

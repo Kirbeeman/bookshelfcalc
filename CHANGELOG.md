@@ -4,17 +4,17 @@ Newest first. The latest release is described in full; earlier ones are listed b
 
 ---
 
-## v1.51 (latest)
+## v1.52 (latest)
 
-**Version numbers in Settings, and click outside to close**
+**Behind-the-scenes cleanup**
 
-- The bottom of **Settings** shows which version of the app you're on and which version of the sync script is installed (or "not installed"). If a newer script is out, it says so.
-- **Clicking outside Settings closes it**, the same as the ×. Changes are only kept when you press Save.
+- Leftover code from an older way of hosting the page (saving to an online account, and a different way of downloading files) has been removed. It never ran on this site, so nothing changes: your library, backups and spreadsheet downloads work exactly as before.
 
 ---
 
 ## Earlier versions
 
+- **v1.51** Version numbers in Settings, and click outside to close
 - **v1.50** This year so far, and a clearer By status card
 - **v1.49** No more candles on the shelf
 - **v1.48** Clearer purchase-date sign-in, Settings dot, flower in the vase
