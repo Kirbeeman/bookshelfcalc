@@ -180,7 +180,12 @@ let scriptVer = '';
 // The oldest sync script this page works with. Raise it only when a release changes the script itself;
 // page-only releases leave it alone, so people aren't stopped for updates that don't touch their script.
 const REQUIRED_SCRIPT = '1.43';
-function checkScriptVersion(v) { scriptVer = v || ''; renderScriptSect(); refreshDot(); if (v && verLess(v, REQUIRED_SCRIPT)) forceUpdate(v); else if (v && document.getElementById('dlgForce')?.open) { document.getElementById('dlgForce').close(); ssSet('klc-updating', ''); } }
+function renderVerLine() {
+  const el = document.getElementById('verLine'); if (!el) return;
+  const sv = scriptVer ? 'v' + scriptVer + (verLess(scriptVer, LATEST_SCRIPT) ? ' (v' + LATEST_SCRIPT + ' available)' : '') : 'not installed';
+  el.textContent = 'App v' + LATEST_SCRIPT + ' · Sync script ' + sv;
+}
+function checkScriptVersion(v) { scriptVer = v || ''; renderScriptSect(); renderVerLine(); refreshDot(); if (v && verLess(v, REQUIRED_SCRIPT)) forceUpdate(v); else if (v && document.getElementById('dlgForce')?.open) { document.getElementById('dlgForce').close(); ssSet('klc-updating', ''); } }
 // An out-of-date script blocks the page until it's updated: no close button, Esc does nothing, clicks outside do nothing
 function forceUpdate(v) {
   let d = $('#dlgForce');
@@ -212,6 +217,7 @@ const lsSet1 = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.r
 
 // ---------- what's new (shown in Settings) ----------
 const CHANGES = [
+  ['1.51', ['The bottom of Settings shows which version of the app and of the sync script you have', 'Clicking outside Settings closes it']],
   ['1.50', ['"This year so far" above the summary: books added and money spent this year, with a monthly average', 'By status is a small table with Books and Pages columns', 'By status shows your shortest and longest unread books, the average length and how many are quick reads']],
   ['1.49', ['No more candles on the shelf, in any theme']],
   ['1.48', ['When Content & Devices wants your password again, the sync says so and links straight to it', 'The red dot on Settings goes away once you\'ve looked at what\'s new', 'A single flower in the vase on the shelf', 'Zon theme: sync problems are readable again']],
@@ -279,6 +285,7 @@ function renderScriptSect() {
 }
 document.addEventListener('click', e => {
   if (!e.target.closest || !e.target.closest('#btnSettings')) return;
+  renderVerLine();
   renderScriptSect();
 });
 
