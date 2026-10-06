@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Kindle Library Calculator
+// @name         Shelf of Shame
 // @namespace    kindle-library-calculator
-// @version      1.52
+// @version      2.0
 // @updateURL    https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @downloadURL  https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
@@ -17,6 +17,11 @@
 // @grant        GM_addStyle
 // @grant        GM_xmlhttpRequest
 // @grant        GM_info
+// @grant        GM.getValue
+// @grant        GM.setValue
+// @grant        GM.listValues
+// @grant        GM.xmlHttpRequest
+// @grant        GM.info
 // @connect      goodreads.com
 // @connect      amazon.com
 // @connect      amazon.co.uk
@@ -25,7 +30,22 @@
 // @run-at       document-end
 // ==/UserScript==
 
-(function () {
+// Userscripts, the free script app for iPhone and iPad, only has GM.getValue and friends, which make you wait for an answer.
+// This loads the saved values first, then hands the script the same GM_ functions Tampermonkey has.
+// In Tampermonkey the real functions pass straight through and nothing waits.
+(async () => {
+const TM = typeof GM_getValue === 'function' && typeof GM_setValue === 'function';
+const cache = {};
+if (!TM && typeof GM !== 'undefined' && GM.getValue) {
+  let keys = ['grUser', 'kindle', 'kindleHost', 'owned', 'prices'];
+  try { if (GM.listValues) keys = [...new Set([...keys, ...await GM.listValues()])]; } catch {}
+  for (const k of keys) { try { const v = await GM.getValue(k); if (v !== undefined) cache[k] = v; } catch {} }
+}
+const api = TM ? [GM_getValue, GM_setValue] : [(k, d) => k in cache ? cache[k] : d, (k, v) => { cache[k] = v; try { GM.setValue(k, v); } catch {} }];
+api.push(typeof GM_addStyle === 'function' ? GM_addStyle : css => { const st = document.createElement('style'); st.textContent = css; (document.head || document.documentElement).appendChild(st); return st; });
+api.push(typeof GM_xmlhttpRequest === 'function' ? GM_xmlhttpRequest : d => GM.xmlHttpRequest(d));
+api.push(typeof GM_info !== 'undefined' ? GM_info : GM.info);
+(function (GM_getValue, GM_setValue, GM_addStyle, GM_xmlhttpRequest, GM_info) {
 'use strict';
 const SITE_URL = 'https://bookshelf.kirbee213.tv/';
 const host = location.hostname;
@@ -111,7 +131,7 @@ async function fetchKindle(progress) {
     const r = await gmGet(`https://${kHost}/kindle-library/search?query=&libraryType=BOOKS&sortType=recency&querySize=50` + (token ? '&paginationToken=' + encodeURIComponent(token) : ''));
     let j; try { j = JSON.parse(r.text); } catch { throw new Error(`sign in at ${kHost} first`); }
     if (r.status !== 200 || !j.itemsList) throw new Error(`sign in at ${kHost} first`);
-    for (const b of j.itemsList) items.push({asin: b.asin, title: b.title, authors: b.authors, percentageRead: b.percentageRead, originType: b.originType, resourceType: b.resourceType});
+    for (const b of j.itemsList) items.push({asin: b.asin, title: unHtml(b.title), authors: unHtml(b.authors), percentageRead: b.percentageRead, originType: b.originType, resourceType: b.resourceType});
     progress(`Reading your Kindle library… ${items.length} books`);
     if (!j.paginationToken) break;
     token = j.paginationToken;
@@ -127,6 +147,12 @@ function gmPost(url, body) {
     ontimeout: () => reject(new Error('timed out')),
   }));
 }
+// Amazon sends some titles and authors with HTML codes left in ("Quick &amp; Easy"); turn them back into characters
+function unHtml(s) {
+  if (s == null) return s;
+  if (Array.isArray(s)) return s.map(unHtml);
+  return String(s).replace(/&(?:(amp)|(lt)|(gt)|(quot)|(#39|apos)|#(\d+)|#x([0-9a-f]+));/gi, (m, a, l, g, q, ap, d, x) => a ? '&' : l ? '<' : g ? '>' : q ? '"' : ap ? "'" : String.fromCodePoint(d ? +d : parseInt(x, 16)));
+}
 // Purchase dates (and Kindle's own "Mark as read" flag) from Amazon's Content & Devices page
 async function fetchOwnership(progress) {
   const shop = GM_getValue('kindleHost', 'read.amazon.com').replace(/^read\./, 'www.');
@@ -141,7 +167,7 @@ async function fetchOwnership(progress) {
       'activity=GetContentOwnershipData&activityInput=' + encodeURIComponent(JSON.stringify(input)) + '&csrfToken=' + encodeURIComponent(token));
     let j; try { j = JSON.parse(r.text).GetContentOwnershipData; } catch { throw new Error('Amazon sent an unexpected reply'); }
     const batch = (j && j.items) || [];
-    for (const b of batch) items.push({asin: b.asin, title: b.title, authors: b.authors, acquiredTime: b.acquiredTime, acquiredDate: b.acquiredDate, readStatus: b.readStatus, originType: b.originType, orderId: b.orderId, orderDetailURL: b.orderDetailURL});
+    for (const b of batch) items.push({asin: b.asin, title: unHtml(b.title), authors: unHtml(b.authors), acquiredTime: b.acquiredTime, acquiredDate: b.acquiredDate, readStatus: b.readStatus, originType: b.originType, orderId: b.orderId, orderDetailURL: b.orderDetailURL});
     progress(`Reading purchase dates… ${items.length}${j && j.numberOfItems ? ' of ' + j.numberOfItems : ''}`);
     if (batch.length < BATCH || (j.numberOfItems && items.length >= j.numberOfItems)) break;
   }
@@ -203,6 +229,8 @@ function parseBookInfo(html) {
       const e = doc.querySelector(sel); const v = e && num(e.textContent); if (v != null) return v;
     }
     const v = num(swText); if (v != null && v > 0) return v;
+    m = text.match(/Kindle Price:?\s*\$\s?(\d[\d,]*\.\d\d)/i); // phone layout of the book page
+    if (m) return +m[1].replace(/,/g, '');
     m = text.match(/(?:^|\s)Kindle\s*\$\s?(\d[\d,]*\.\d\d)(?!\s*or)/);
     return m ? +m[1].replace(/,/g, '') : null;
   })();
@@ -314,7 +342,7 @@ if (!onCalc) {
 }
 
 // ---------- 4. goodreads.com/kindle-calculator: the calculator drawn inside Goodreads (kept for older links) ----------
-document.title = 'Kindle Library Calculator';
+document.title = 'Shelf of Shame';
 document.querySelectorAll('link[rel="stylesheet"], style').forEach(n => n.remove());
 const font = document.createElement('link'); font.rel = 'stylesheet';
 font.href = 'https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,600;7..72,800&family=JetBrains+Mono:wght@400;600&display=swap';
@@ -325,4 +353,5 @@ document.body.innerHTML = `/*BODY*/`;
 GM_addStyle(`/*CSS*/`);
 
 /*CALC*/
+})(...api);
 })();

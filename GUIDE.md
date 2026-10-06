@@ -1,6 +1,6 @@
-# Kindle Library Calculator: User guide
+# Shelf of Shame: User guide
 
-Everything the calculator does, and how. For setup, see the [README](README.md). For what changed recently, see the [changelog](CHANGELOG.md).
+Everything the calculator does, and how. On a phone or iPad, start with the [iPhone and iPad guide](https://bookshelf.kirbee213.tv/ioshelp); Android works the same way. For setup, see the [README](README.md). For what changed recently, see the [changelog](CHANGELOG.md).
 
 ## Contents
 

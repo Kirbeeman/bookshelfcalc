@@ -26,7 +26,71 @@ window.addEventListener('message', e => {
   else if (d.type === 'binfoResult' && kpWaiters[d.id]) { const w = kpWaiters[d.id]; delete kpWaiters[d.id]; try { w(JSON.parse(d.data)); } catch { w(null); } }
   else if (d.type === 'result' && bridgeWaiters) { const w = bridgeWaiters; bridgeWaiters = null; try { w.resolve(JSON.parse(d.data)); } catch (err) { w.reject(err); } }
 });
+// ---------- phone sync bookmark: amazon.com opens this page with #bm and hands over what it read there ----------
+// The bookmark is tiny (phone browsers cut off long bookmarks): it loads bm.js from this site, which does the work on amazon.com
+const bookmarkletCode = () => `javascript:(()=>{const s=document.createElement('script');s.src='${location.origin}/bm.js?'+Date.now();document.body.appendChild(s)})()`;
+function initPhoneSync() {
+  if (location.hash !== '#bm' || !window.opener) return;
+  const AMZ = /^https:\/\/www\.amazon\.(com|co\.uk|ca|com\.au)$/;
+  window.addEventListener('message', async e => {
+    const d = e.data;
+    if (!d || d.klc !== 1 || d.type !== 'bm-data' || !AMZ.test(e.origin)) return;
+    let data; try { data = JSON.parse(d.data); } catch { return; }
+    await storeReady;
+    const n = applyPhoneSync(data);
+    try { e.source.postMessage({klc: 1, type: 'bm-done', books: n}, e.origin); } catch {}
+    history.replaceState(null, '', location.pathname + location.search);
+  });
+  window.opener.postMessage({klc: 1, type: 'bm-ready'}, '*'); // just "I'm here"; the data only comes from Amazon's own page
+}
+// The same book can sit in the library twice: once under the Kindle reader's ID (from a computer sync) and once under
+// Content & Devices' ID (from the phone, brought over by Google Drive). Keep the Content & Devices copy and fold the other
+// into it: anything only the other copy has comes across, edits made by hand win, and the further reading progress wins.
+function foldDuplicates(ownedItems) {
+  const cd = new Set((ownedItems || []).map(i => String(i.asin || '').toUpperCase()).filter(Boolean));
+  if (!cd.size) return 0;
+  const key = b => normTitle(b.title) + '|' + surname(b.author);
+  const keep = new Map();
+  for (const b of S.books) if (b.asin && cd.has(b.asin.toUpperCase())) keep.set(key(b), b);
+  let n = 0;
+  S.books = S.books.filter(d => {
+    if (d.asin && cd.has(d.asin.toUpperCase())) return true;
+    const k = keep.get(key(d)); if (!k || k === d) return true;
+    for (const f of Object.keys(d)) if (f !== 'id' && f !== 'asin' && (k[f] == null || k[f] === '' || (Array.isArray(k[f]) && !k[f].length))) k[f] = d[f];
+    for (const f of Object.keys(d)) if (/Src$/.test(f) && d[f] === 'manual' && k[f] !== 'manual') { const base = f.slice(0, -3); k[f] = 'manual'; if (base in d) k[base] = d[base]; }
+    for (const f of ['dateManual', 'sourceManual']) if (d[f] && !k[f]) { k[f] = true; k[f === 'dateManual' ? 'date' : 'source'] = d[f === 'dateManual' ? 'date' : 'source']; }
+    if (d.priceSrc !== 'order' && hasPaid(d) && !(k.priceSrc === 'order')) k.price = d.price;
+    if ((d.progress || 0) > (k.progress || 0) || (d.lock && !k.lock)) { k.progress = d.progress; k.status = d.status; }
+    if (d.lock) k.lock = true;
+    n++; return false;
+  });
+  return n;
+}
+function applyPhoneSync(data) {
+  const items = data.owned?.items || [];
+  if (!items.length) return 0;
+  leaveDemo(true);
+  merge(fromKindle(items).map(x => ({...x, asinWins: true})), false, 'kindle');
+  foldDuplicates(items);
+  const dated = applyOwnership(items);
+  let priced = 0;
+  for (const b of S.books) {
+    const v = b.asin && data.prices && data.prices[b.asin];
+    if (typeof v === 'number' && !hasPaid(b)) { b.price = v; b.priceSrc = 'order'; priced++; }
+  }
+  const now = Date.now(); let det = 0;
+  for (const b of S.books) { const inf = b.asin && data.info && data.info[b.asin]; if (inf) { applyBookInfo(b, inf, now); det++; } }
+  renderAll(); scheduleSave();
+  lsSet1('klc-bm-last', String(now));
+  const when = new Date(now).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
+  setSync(`Synced ${when} with the sync bookmark · ${items.length} books · ${dated} purchase dates${priced ? ` · ${priced} prices` : ''} · details for ${det}`, 'db');
+  toast(`Synced ${fmtInt(items.length)} books from Amazon`);
+  return items.length;
+}
 function startSync() {
+  if (MOBILE && S.demo) { const p = $('#demoBanner p'); if (p) p.innerHTML = '<strong>This is an example library</strong> of public-domain classics so you can see how it works. Tap <b>Get started</b> to bring in your own books from Amazon, Google Drive or a file.'; const bi = $('#bannerImport'); if (bi) bi.textContent = 'Get started'; }
+  initPhoneSync();
+  initDrive();
   if (hasCore) { enableSync(); return; }
   postBridge({type: 'hello'});
   if (location.protocol === 'file:') return;
@@ -35,15 +99,17 @@ function startSync() {
     if (syncOn) return;
     // First visit (still on the example) or coming back mid-setup: walk them through it
     if (resume || (S.demo && !lsFlag('klc-wiz-skip'))) { openWizard(resume || 'welcome'); return; }
-    // Has their own books but no script answered: say so, with a way into setup
+    // Has their own books but no script answered: say so, with a way into setup (unless they sync with the bookmark)
     const el = $('#sync'); el.hidden = false; el.className = 'store local';
+    let bmLast = 0; try { bmLast = +(localStorage.getItem('klc-bm-last') || 0); } catch {}
+    if (bmLast) { el.className = 'store db'; el.querySelector('span').textContent = `Last synced with the sync bookmark ${new Date(bmLast).toLocaleDateString([], {month: 'short', day: 'numeric'})}`; renderScriptSect(); return; }
     el.querySelector('span').innerHTML = 'Sync script not detected, so prices, pages and genres are guesses. <a href="#" id="syncHelp" style="color:inherit">Set up sync</a>';
     $('#syncHelp').onclick = e => { e.preventDefault(); openWizard('welcome'); };
     renderScriptSect();
   }, resume === 'check' ? 0 : 1500));
   setInterval(checkPageUpdate, 30 * 60000); setTimeout(checkPageUpdate, 5000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') return; if (document.getElementById('dlgForce')?.open && ssGet('klc-updating')) { location.reload(); return; } if (ssGet('klc-updating')) { ssSet('klc-updating', ''); pendingReload = true; } tryReload(); });
-  if (ssGet('klc-updated-from')) { ssSet('klc-updated-from', ''); lsSet1('klc-unseen', '1'); setTimeout(() => toast(`Updated to version ${LATEST_SCRIPT}. Settings shows what's new.`), 800); }
+  if (ssGet('klc-updated-from')) { ssSet('klc-updated-from', ''); lsSet1('klc-unseen', '1'); setTimeout(() => toast(`Updated to version ${verLabel(LATEST_SCRIPT)}. Settings shows what's new.`), 800); }
   refreshDot();
 }
 function bridgeSync(force, paid) {
@@ -67,6 +133,7 @@ function normGoodreads(list) {
   })).filter(b => b.title);
 }
 
+const DEVICE_EXTRA = /dictionar|diccionario|dictionnaire|dicion[aá]rio|w[oö]rterbuch|woordenboek|vocabolario|shabd|kosh|lingvo|词典|辞典|辞泉|daijisen|zingarelli|priberam|duden|munjid|user'?s guide|benutzerhandbuch|gu[ií]a del usuario|guide d.utilisation|gebruikershandleiding|guia do usu[aá]rio|guida all.uso|用户指南|yuza gaido/i;
 const ORIGIN = {purchase:'purchase', sharing:'shared', kindleunlimited:'ku', prime:'prime', primereading:'prime', sample:'sample', publiclibrarylending:'other', personallending:'other', rental:'other', koll:'other', freetrial:'free', comicsunlimited:'ku'};
 // Real purchase dates from Amazon replace missing or estimated ones; Kindle's "Mark as read" marks a book finished
 function applyOwnership(items) {
@@ -82,6 +149,8 @@ function applyOwnership(items) {
     // How the book was obtained, from Amazon's own record (a source you picked by hand wins)
     const src = ORIGIN[String(o.originType || '').toLowerCase()];
     if (src && !b.sourceManual) b.source = src;
+    // A "purchase" with no order behind it wasn't bought: dictionaries and user guides come with the Kindle, anything else was free
+    if (src === 'purchase' && !o.orderDetailURL && !o.orderId && !b.sourceManual && !(hasPaid(b) && b.priceSrc !== 'order')) b.source = DEVICE_EXTRA.test(b.title) ? 'device' : 'free';
     if (/^READ$/i.test(o.readStatus || '') && !b.lock && b.status !== 'finished') { b.status = 'finished'; b.progress = 100; }
   }
   return n;
@@ -95,13 +164,19 @@ async function runSync(force) {
     const paid = S.books.filter(b => b.asin && hasPaid(b)).map(b => b.asin); // already priced: the script never looks these up again
     const data = hasCore ? await KLC_CORE.sync(force, msg => syncProgress(msg), paid) : await bridgeSync(force, paid);
     const gr = normGoodreads(data.goodreads);
-    let kItems = data.kindle?.items || [];
+    // Like the phone bookmark: Content & Devices is the main list, because prices paid and purchase dates are filed under its
+    // Amazon IDs. The Kindle reader's list then adds reading progress, and any book bought since Content & Devices was last read.
+    const owned = data.owned?.items || [], kList = data.kindle?.items || [];
+    let kItems = owned.length ? owned : kList;
     // The Kindle reader (read.amazon.com) has its own sign-in. If it said no but Content & Devices answered, build the library from that list.
-    const fromOwned = !kItems.length && !!data.owned?.items?.length;
-    if (fromOwned) kItems = data.owned.items;
+    const fromOwned = owned.length > 0, noProgress = fromOwned && !kList.length;
     if (!gr.length && !kItems.length) { setSync([data.grErr, data.kErr].filter(Boolean).join(' · ') || 'Nothing to sync yet.', 'local'); cardResult(data, 0, 0, 0, 0); return; }
     leaveDemo(true);
-    if (kItems.length) merge(fromKindle(kItems), false, 'kindle');
+    if (kItems.length) merge(fromKindle(kItems).map(x => fromOwned ? {...x, asinWins: true} : x), false, 'kindle');
+    if (fromOwned) foldDuplicates(owned);
+    // Reading progress, plus any book Content & Devices hasn't listed yet (it's re-read once a day). A book already here under
+    // its Content & Devices ID is matched by title, so it isn't added twice.
+    if (fromOwned && kList.length) merge(fromKindle(kList), false, 'kindle');
     const res = merge(gr, false, 'goodreads', !kItems.length || S.settings.grAll);
     const dated = applyOwnership(data.owned?.items);
     let priced = 0;
@@ -116,7 +191,7 @@ async function runSync(force) {
     const kTxt = data.kErr && !kItems.length ? `Kindle failed: ${data.kErr}` : kItems.length ? `Kindle ${kItems.length} books` + (data.kErr ? ' (older copy: ' + data.kErr + ')' : '') : 'Kindle not synced';
     lastSyncMsg = `Synced ${when} · ${grTxt} · ${kTxt}${oTxt}`;
     setSync(lastSyncMsg, data.grErr || data.kErr || data.oErr ? 'local' : 'db');
-    cardResult(data, gr.length, kItems.length, dated, priced, fromOwned);
+    cardResult(data, gr.length, kItems.length, dated, priced, noProgress);
     setTimeout(lookupBookInfo, 500);
   } catch (e) {
     setSync(e.message || String(e), 'local'); cardError('sync', e.message || String(e));
@@ -133,10 +208,23 @@ function infoFetch(asins) {
     setTimeout(() => { if (kpWaiters[id]) { delete kpWaiters[id]; resolve(null); } }, 120000);
   });
 }
+// What one look at a book's Amazon page tells us: today's price, page count, genre, second genre and tags
+function applyBookInfo(b, inf, now) {
+  let priced = false;
+  if (!hasPaid(b) && inf.price != null) { b.kp = inf.price; priced = true; }
+  b.kpTime = now;
+  if (!(b.pages > 0) && inf.pages) { b.pages = inf.pages; b.pagesSrc = 'amazon'; }
+  if (b.genreSrc !== 'manual') { const g = amazonGenre(inf); if (g) { b.genre = g.key; b.genreName = g.name; b.genreSub = g.sub; b.genreSrc = 'amazon'; } }
+  b.tags = amazonTags(inf);
+  if (b.genre2Src !== 'manual') b.genre2 = secondGenre(b.tags, b.genre);
+  b.genreV = GENRE_V;
+  b.infoTime = now;
+  return priced;
+}
 async function lookupBookInfo() {
   if (kpRunning || !syncOn || S.demo) return;
   const MONTH = 30 * 864e5, now = Date.now();
-  const needsPrice = b => !hasPaid(b) && b.source !== 'free' && b.source !== 'sample' && (!b.kpTime || now - b.kpTime > MONTH);
+  const needsPrice = b => !hasPaid(b) && b.source !== 'free' && b.source !== 'device' && b.source !== 'sample' && (!b.kpTime || now - b.kpTime > MONTH);
   const todo = S.books.filter(b => b.asin && (!b.infoTime || needsPrice(b) || needsGenre(b)))
     .sort((a, b) => (a.status === 'unread' ? 0 : 1) - (b.status === 'unread' ? 0 : 1) || (counted(a) ? 0 : 1) - (counted(b) ? 0 : 1));
   if (!todo.length) { genreStatus(''); stage('details', 'ok', 'up to date'); cardMaybeDone(); return; }
@@ -154,14 +242,8 @@ async function lookupBookInfo() {
       if (!res) break;
       for (const b of batch) {
         const inf = res.info[b.asin]; if (!inf) continue;
-        if (!hasPaid(b) && inf.price != null) { b.kp = inf.price; found++; }
-        b.kpTime = now;
-        if (!(b.pages > 0) && inf.pages) { b.pages = inf.pages; b.pagesSrc = 'amazon'; }
-        if (b.genreSrc !== 'manual') { const g = amazonGenre(inf); if (g) { b.genre = g.key; b.genreName = g.name; b.genreSub = g.sub; b.genreSrc = 'amazon'; } }
-        b.tags = amazonTags(inf);
-        if (b.genre2Src !== 'manual') b.genre2 = secondGenre(b.tags, b.genre);
-        b.genreV = GENRE_V;
-        b.infoTime = now; done++;
+        if (applyBookInfo(b, inf, now)) found++;
+        done++;
       }
       renderStats(); renderShelf(); scheduleSave();
       if (res.blocked) { setSync(`${lastSyncMsg} · Amazon paused lookups after ${done}; the rest continue next visit`, 'local'); stage('details', 'err', `${fmtInt(done)} of ${fmtInt(todo.length)}`, done / todo.length); cardError('details', 'Amazon asked us to slow down. The rest of the book details fill in on your next visit.', true); return; }
@@ -174,18 +256,21 @@ async function lookupBookInfo() {
 
 // ---------- tell people when their sync script is behind the site ----------
 const LATEST_SCRIPT = '__SCRIPT_VERSION__';
+// Beta builds carry a fifth number, the beta count: 2.0.0.0.1 is shown as "2.0 beta 1" (the live build it's heading toward, then which beta)
+const verLabel = v => { const p = String(v || '').split('.'); if (p.length < 5) return String(v || ''); const b = p.pop(); while (p.length > 2 && p[p.length - 1] === '0') p.pop(); return p.join('.') + ' beta ' + b; };
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
 const verLess = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
 let scriptVer = '';
 // The oldest sync script this page works with. Raise it only when a release changes the script itself;
 // page-only releases leave it alone, so people aren't stopped for updates that don't touch their script.
-const REQUIRED_SCRIPT = '1.43';
+const REQUIRED_SCRIPT = '__REQUIRED_SCRIPT__'; // filled in by build.py: the version where the script's code last changed
 function renderVerLine() {
   const el = document.getElementById('verLine'); if (!el) return;
-  const sv = scriptVer ? 'v' + scriptVer + (verLess(scriptVer, LATEST_SCRIPT) ? ' (v' + LATEST_SCRIPT + ' available)' : '') : 'not installed';
-  el.textContent = 'App v' + LATEST_SCRIPT + ' · Sync script ' + sv;
+  const sv = scriptVer ? 'v' + verLabel(scriptVer) + (verLess(scriptVer, REQUIRED_SCRIPT) ? ' (update needed)' : '') : 'not installed';
+  el.textContent = 'App v' + verLabel(LATEST_SCRIPT) + ' · Sync script ' + sv;
 }
-function checkScriptVersion(v) { scriptVer = v || ''; renderScriptSect(); renderVerLine(); refreshDot(); if (v && verLess(v, REQUIRED_SCRIPT)) forceUpdate(v); else if (v && document.getElementById('dlgForce')?.open) { document.getElementById('dlgForce').close(); ssSet('klc-updating', ''); } }
+function checkScriptVersion(v) { if (v && scriptVer && verLess(v, scriptVer)) return; scriptVer = v || ''; // two copies installed: go by the newer one
+  renderScriptSect(); renderVerLine(); refreshDot(); if (v && verLess(v, REQUIRED_SCRIPT)) forceUpdate(v); else if (v && document.getElementById('dlgForce')?.open) { document.getElementById('dlgForce').close(); ssSet('klc-updating', ''); } }
 // An out-of-date script blocks the page until it's updated: no close button, Esc does nothing, clicks outside do nothing
 function forceUpdate(v) {
   let d = $('#dlgForce');
@@ -197,9 +282,9 @@ function forceUpdate(v) {
   const back = ssGet('klc-updating');
   d.innerHTML = `<div class="dlg wiz">
     <div class="forceicon" aria-hidden="true">⟳</div>
-    <h2>${back ? 'Almost there' : 'Update needed'}</h2>
-    <p>${back ? `This page still sees version <b>${esc(v)}</b>. In the Tampermonkey tab that opened, press <b>Update</b>, then come back here.`
-      : `Your sync script is version <b>${esc(v)}</b>, and this page needs <b>${REQUIRED_SCRIPT}</b> or newer to sync correctly. It takes about ten seconds and keeps all your books and settings.`}</p>
+    <h2>${back ? 'Hold up, wait a minute…' : 'Update needed'}</h2>
+    <p>${back ? `This page still sees version <b>${esc(verLabel(v))}</b>. In the Tampermonkey tab that opened, press <b>Update</b>, then come back here. If Tampermonkey now lists two Shelf of Shame scripts, delete the older one.`
+      : `Your sync script is version <b>${esc(verLabel(v))}</b>, and this page needs <b>${verLabel(REQUIRED_SCRIPT)}</b> or newer to sync correctly. It takes about ten seconds and keeps all your books and settings.`}</p>
     <ol class="wlist"><li>Click <b>Update script</b>. Tampermonkey opens in a new tab.</li><li>Press <b>Update</b> there.</li><li>Come back to this tab. It reloads by itself.</li></ol>
     <div class="row" style="justify-content:center;gap:10px"><a class="btn primary" href="${SCRIPT_URL}" target="_blank" rel="noopener" id="forceGo">Update script</a>${back ? '<button type="button" class="btn" id="forceRe">Check again</button>' : ''}</div>
     <details class="news"><summary>Tampermonkey didn't open?</summary><p>Click the Tampermonkey icon in your browser's toolbar → <b>Utilities</b> → <b>Check for userscript updates</b>, then reload this page.</p></details>
@@ -217,8 +302,28 @@ const lsSet1 = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.r
 
 // ---------- what's new (shown in Settings) ----------
 const CHANGES = [
-  ['1.52', ['Behind-the-scenes cleanup: leftover code from an older way of hosting the page is gone. Nothing changes for you']],
-  ['1.51', ['The bottom of Settings shows which version of the app and of the sync script you have', 'Clicking outside Settings closes it']],
+  ['2.0', ['Now called Shelf of Shame, with its own icon and a new Fruit theme (frosted glass, follows your device)', 'Sync from a phone or iPad with a bookmark, no install needed (Settings › Sync from your phone)', 'Keep your library in your own Google Drive so your phone and computer match', 'Truer numbers: your library comes from Content & Devices so prices paid land on the right books, and dictionaries and guides that came with your Kindle are left out']],
+  ['2.0.0.0.16', ['Your oldest unread book is named first, as in "Moby-Dick has been waiting this long for you to read it"']],
+  ['2.0.0.0.15', ['Fixed: the phone sync bookmark stopped with "Can\'t find variable: unHtml"']],
+  ['2.0.0.0.14', ['The sync script cleans up titles and authors as it reads them from Amazon (no more &amp;). This one needs a script update']],
+  ['2.0.0.0.13', ['Dictionaries and user guides that came with your Kindle are no longer counted as unread books worth $7.99 each (Settings can count them again)', 'A book Amazon lists as bought but with no order behind it counts as free instead of a guessed price', 'Titles show & instead of &amp;', 'Fruit theme: pop-ups like How this adds up are no longer hidden under the next panel']],
+  ['2.0.0.0.12', ['On a computer, your library now comes from Amazon\'s Content & Devices list, like on a phone, so prices paid land on the right books. The Kindle reader still adds reading progress and brand-new books', 'A book that was in your library twice (once from the computer, once from the phone) becomes one again, keeping your edits']],
+  ['2.0.0.0.11', ['iPads get the phone setup (the sync bookmark, Google Drive or a file) instead of being told to use a computer']],
+  ['2.0.0.0.10', ['Until you pick a theme, the page starts in Fruit on iPhone, iPad and Mac, and in Default everywhere else. A theme you pick always sticks']],
+  ['2.0.0.0.9', ['New theme in Settings: Fruit. Frosted glass panels over a soft, colorful background, rounded pill buttons and bright colors. It follows your device\'s light or dark setting']],
+  ['2.0.0.0.8', ['Behind-the-scenes cleanup: leftover code from an older way of hosting the page is gone. Nothing changes for you']],
+  ['2.0.0.0.7', ['When the sync script itself changes, the page asks you to update it before syncing. Page-only updates no longer ask you to update the script']],
+  ['2.0.0.0.6', ['A changed icon now shows up straight away, instead of the browser holding on to the old one']],
+  ['2.0.0.0.5', ['A bolder Halloween icon: a jack-o\'-lantern book with a glowing carved face']],
+  ['2.0.0.0.4', ['A Shelf of Shame icon in your browser tab and on your home screen: a book with its price tag still on, or a cobwebbed book in the Halloween theme', 'Sending someone a link to the site shows a picture and a short description']],
+  ['2.0.0.0.3', ['The calculator is now called Shelf of Shame everywhere, including the sync script and your Google Drive file']],
+  ['2.0.0.0.2', ['Set up the bookmark: one tap copies the sync code and opens a page that walks you through saving it, already named Shelf sync', 'The sync script also works in Userscripts, the free script app for iPhone and iPad']],
+  ['2.0.0.0.1', ['The bottom of Settings shows which version of the app and of the sync script you have', 'Tapping outside Settings closes it']],
+  ['1.55', ['Faster on phones with big libraries: the library table loads 40 books at a time, scrolling no longer redraws the page, and search waits for a pause in typing']],
+  ['1.54', ['On a phone, getting started offers three ways in: sync from Amazon with the bookmark, load from Google Drive, or import a file', 'Picking a file to import brings it in straight away', "Connecting a Google account whose Drive has no library yet says so"]],
+  ['1.53', ['Books with no Amazon store page get a genre guessed from their title, marked "guessed"']],
+  ['1.52', ['Keep your library in your own Google Drive and share it between your phone and computer (Settings › Google Drive)', 'A 10-book shelf on phones, with a globe (or cauldron) and a comic for the smallest genres']],
+  ['1.51', ['Sync from your phone with a bookmark: nothing to install (Settings › Sync from your phone)']],
   ['1.50', ['"This year so far" above the summary: books added and money spent this year, with a monthly average', 'By status is a small table with Books and Pages columns', 'By status shows your shortest and longest unread books, the average length and how many are quick reads']],
   ['1.49', ['No more candles on the shelf, in any theme']],
   ['1.48', ['When Content & Devices wants your password again, the sync says so and links straight to it', 'The red dot on Settings goes away once you\'ve looked at what\'s new', 'A single flower in the vase on the shelf', 'Zon theme: sync problems are readable again']],
@@ -263,7 +368,7 @@ function tryReload() {
 // The dot on Settings means something new is waiting there. It goes once you've opened Settings and pointed at (or tapped) the new part.
 const dotSeen = () => { try { return localStorage.getItem('klc-dot-seen') === LATEST_SCRIPT; } catch { return false; } };
 function refreshDot() {
-  const need = !dotSeen() && ((scriptVer && verLess(scriptVer, LATEST_SCRIPT)) || lsFlag('klc-unseen'));
+  const need = !dotSeen() && ((scriptVer && verLess(scriptVer, REQUIRED_SCRIPT)) || lsFlag('klc-unseen'));
   $('#btnSettings').classList.toggle('dot', !!need);
 }
 function renderScriptSect() {
@@ -273,21 +378,44 @@ function renderScriptSect() {
     sec = document.createElement('div'); sec.className = 'files'; sec.id = 'scriptSect';
     const files = document.querySelector('#dlgSettings .files'); files.before(sec);
   }
-  const out = scriptVer && verLess(scriptVer, LATEST_SCRIPT);
+  const out = scriptVer && verLess(scriptVer, REQUIRED_SCRIPT);
   const st = !syncOn ? `<p class="note">Not connected. The free sync script brings in your Kindle library, purchase dates and prices by itself.</p><div class="row"><button type="button" class="btn primary" id="sSetup">Set up sync</button></div>`
-    : out ? `<p class="note"><b>Update ready.</b> You have version ${esc(scriptVer)}; version ${LATEST_SCRIPT} is out. Click Update, press <b>Update</b> in the Tampermonkey tab that opens, then come back. This page finishes by itself.</p><div class="row"><button type="button" class="btn primary" id="sUpdate">Update</button></div>`
-    : `<p class="note" style="color:var(--ok)">✓ Sync script ${esc(scriptVer || LATEST_SCRIPT)}, up to date.</p>`;
+    : out ? `<p class="note"><b>Update ready.</b> You have version ${esc(verLabel(scriptVer))}; version ${verLabel(REQUIRED_SCRIPT)} is needed. Click Update, press <b>Update</b> in the Tampermonkey tab that opens, then come back. This page finishes by itself.</p><div class="row"><button type="button" class="btn primary" id="sUpdate">Update</button></div>`
+    : `<p class="note" style="color:var(--ok)">✓ Sync script ${esc(verLabel(scriptVer || REQUIRED_SCRIPT))}, up to date.</p>`;
   const unseen = lsFlag('klc-unseen');
   sec.classList.toggle('fresh', !dotSeen() && (!!out || unseen));
   if (!sec.dataset.w) { sec.dataset.w = '1'; const seen = () => { if (!sec.classList.contains('fresh')) return; try { localStorage.setItem('klc-dot-seen', LATEST_SCRIPT); } catch {} lsSet1('klc-unseen', ''); sec.classList.remove('fresh'); refreshDot(); }; ['pointerenter', 'focusin', 'click'].forEach(ev => sec.addEventListener(ev, seen)); }
-  sec.innerHTML = `<h4>Sync script and updates<span class="newtag">new</span></h4>${st}<details class="news"${unseen ? ' open' : ''}><summary>What's new${unseen ? ` in ${LATEST_SCRIPT}` : ''}</summary>${CHANGES.slice(0, 3).map(([v, n]) => `<p><b>${v}</b></p><ul>${n.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`).join('')}</details>`;
+  sec.innerHTML = `<h4>Sync script and updates<span class="newtag">new</span></h4>${st}<details class="news"${unseen ? ' open' : ''}><summary>What's new${unseen ? ` in ${verLabel(LATEST_SCRIPT)}` : ''}</summary>${CHANGES.slice(0, 3).map(([v, n]) => `<p><b>${verLabel(v)}</b></p><ul>${n.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`).join('')}</details>`;
   const su = $('#sSetup'); if (su) su.onclick = () => { $('#dlgSettings').close(); openWizard('welcome'); };
   const up = $('#sUpdate'); if (up) up.onclick = () => { ssSet('klc-updating', '1'); window.open(SCRIPT_URL, '_blank', 'noopener'); up.textContent = 'Waiting for Tampermonkey…'; up.disabled = true; };
+}
+// Copy the bookmark code, then go to bookmark.html: a page titled "Shelf sync", so the bookmark saved there is already named
+async function setupBookmark() {
+  const code = bookmarkletCode();
+  try { await navigator.clipboard.writeText(code); }
+  catch { const t = document.createElement('textarea'); t.value = code; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  location.href = 'bookmark.html#c';
+}
+// Settings: the phone sync bookmark (works in any browser, nothing to install)
+function renderPhoneSect() {
+  if (hasCore || $('#phoneSect')) return;
+  const sec = document.createElement('div'); sec.className = 'files'; sec.id = 'phoneSect';
+  const files = document.querySelector('#dlgSettings .files:not(#scriptSect):not(#phoneSect)') || document.querySelector('#dlgSettings .files'); files.before(sec);
+  sec.innerHTML = `<h4>Sync from your phone (nothing to install)</h4>
+    <p class="note">A bookmark does the syncing. Tap it while you're on amazon.com and it reads your books, purchase dates and prices right there in your browser, then sends them to this page. Nothing is installed and your data doesn't go anywhere else.</p>
+    <div class="row"><button type="button" class="btn primary" id="bmSetup">Set up the bookmark</button><a class="btn" id="bmDrag" href="#">Shelf sync</a></div>
+    <p class="note" style="margin-top:-4px">Copies the sync code and opens a short page that walks you through saving it. On a computer you can drag <b>Shelf sync</b> to your bookmarks bar instead.</p>
+    <p class="note">The first time, it reads up to 80 books' genres and pages. Tap it again later to carry on with the rest.</p>`;
+  $('#bmDrag').href = bookmarkletCode();
+  $('#bmDrag').onclick = e => { e.preventDefault(); toast('Drag this to your bookmarks bar, or use Copy'); };
+  $('#bmSetup').onclick = setupBookmark;
 }
 document.addEventListener('click', e => {
   if (!e.target.closest || !e.target.closest('#btnSettings')) return;
   renderVerLine();
+  renderPhoneSect();
   renderScriptSect();
+  renderDriveSect(); if (!hasCore && location.protocol !== 'file:') loadGis().catch(() => {});
 });
 
 // ---------- sync progress card ----------
@@ -381,7 +509,8 @@ function cardMaybeDone() {
 const UA = navigator.userAgent;
 const BR = /OPR\//.test(UA) ? 'opera' : /Edg\//.test(UA) ? 'edge' : /Firefox\//.test(UA) ? 'firefox' : /Chrome\//.test(UA) ? 'chrome' : 'other';
 const BRNAME = {opera: 'Opera', edge: 'Edge', firefox: 'Firefox', chrome: 'Chrome', other: 'your browser'}[BR];
-const MOBILE = /Mobi|Android|iPhone|iPad/i.test(UA);
+// iPads ask for the desktop version of sites and call themselves a Mac, so a touch screen on a "Mac" means an iPad
+const MOBILE = /Mobi|Android|iPhone|iPad/i.test(UA) || (/Macintosh/.test(UA) && navigator.maxTouchPoints > 0); // Macs have no touch screen
 const EXT_PAGE = {opera: 'opera://extensions', edge: 'edge://extensions', chrome: 'chrome://extensions'}[BR];
 const WSTEPS = ['welcome', 'tm', ...(EXT_PAGE ? ['allow'] : []), 'script', 'done'];
 let wizAt = 'welcome';
@@ -404,9 +533,15 @@ function wizGo(step) {
   const prev = s => WSTEPS[WSTEPS.indexOf(s) - 1], next = s => WSTEPS[WSTEPS.indexOf(s) + 1];
   const skip = '<button type="button" class="linkbtn" id="wizSkip">Skip setup and look at the example</button>';
   const v = {
-    welcome: `<h2>Get your own Shelf of Shame</h2>
+    welcome: MOBILE ? `<h2>Get your own Shelf of Shame</h2>
+      <p>Pick how to bring in your books. Nothing to install.</p>
+      <div class="wpick">
+        <button type="button" class="btn primary" id="wzBm"><b>Sync from Amazon</b><span>A bookmark reads your Kindle books on amazon.com, right on this phone</span></button>
+        <button type="button" class="btn" id="wzGd"><b>Load from Google Drive</b><span>Already use the calculator on another device with Google Drive? Bring that library here</span></button>
+        <button type="button" class="btn" id="wzFile"><b>Import a file</b><span>A backup from another device, or a Goodreads export</span></button>
+      </div>` : `<h2>Get your own Shelf of Shame</h2>
       <p>About five minutes, one time. A free browser add-on (Tampermonkey) runs a small script that reads your Kindle library while you're signed in to Amazon. Nothing to download or paste, and your books stay in this browser.</p>
-      ${MOBILE ? `<p class="wwarn">Setup needs a computer (Chrome, Edge, Opera or Firefox). On a phone you can look around the example, or bring in a Goodreads export from <b>Settings → Import a file</b>.</p>` : BR === 'other' ? `<p class="wwarn">This works in Chrome, Edge, Opera or Firefox on a computer. Open this page in one of those to continue.</p>` : `<p class="muted">Looks like you're using <b>${BRNAME}</b>. The steps below are written for it.</p>`}
+      ${MOBILE ? '' : BR === 'other' ? `<p class="wwarn">This works in Chrome, Edge, Opera or Firefox on a computer. Open this page in one of those to continue.</p>` : `<p class="muted">Looks like you're using <b>${BRNAME}</b>. The steps below are written for it.</p>`}
       ${nav(null, MOBILE || BR === 'other' ? null : 'tm', "Let's go")}`,
     tm: `<h2>Add Tampermonkey to ${BRNAME}</h2>
       <p>It's a free, widely used add-on that runs small scripts on websites you choose.</p>
@@ -428,7 +563,7 @@ function wizGo(step) {
     trouble: `<h2>The script isn't answering yet</h2>
       <p>Almost always one of these:</p>
       <ul class="wlist">${EXT_PAGE ? `<li><b>Allow User Scripts is off.</b> <span class="kbd">${EXT_PAGE}</span> → Tampermonkey → Details → turn it on.</li>` : ''}
-      <li><b>The script is switched off.</b> Click the Tampermonkey icon in the toolbar and make sure <b>Kindle Library Calculator</b> is on.</li>
+      <li><b>The script is switched off.</b> Click the Tampermonkey icon in the toolbar and make sure <b>Shelf of Shame</b> is on.</li>
       <li><b>The install didn't finish.</b> Go back a step and press Install again.</li></ul>
       <div class="row wnav"><button type="button" class="btn" data-go="script">Back</button><button type="button" class="btn primary" id="wizCheck">Try again</button></div>`,
     done: `<h2>You're connected ✓</h2>
@@ -439,11 +574,14 @@ function wizGo(step) {
       <p class="muted">Book details (genres, pages, prices) then fill in over a few minutes, about a second per book.</p>
       <div class="row wnav" style="justify-content:center"><button type="button" class="btn primary" id="wizClose">I'm signed in, sync now</button></div>`,
   }[step];
-  $('#wizBody').innerHTML = (step === 'check' || step === 'trouble' ? '' : dots) + v + (step === 'done' ? '' : skip);
+  $('#wizBody').innerHTML = (step === 'check' || step === 'trouble' || MOBILE ? '' : dots) + v + (step === 'done' ? '' : skip);
   const b = $('#wizBody');
   b.querySelectorAll('[data-go]').forEach(x => x.onclick = () => wizGo(x.dataset.go));
   b.querySelectorAll('[data-copy]').forEach(x => x.onclick = async () => { try { await navigator.clipboard.writeText(x.dataset.copy); x.textContent = 'Copied ✓'; } catch { x.textContent = x.dataset.copy; } });
   const sk = $('#wizSkip'); if (sk) sk.onclick = wizSkip;
+  const wb = $('#wzBm'); if (wb) wb.onclick = () => { wizSkip(); setupBookmark(); };
+  const wg = $('#wzGd'); if (wg) wg.onclick = () => { wizSkip(); syncDrive(true); };
+  const wf = $('#wzFile'); if (wf) wf.onclick = () => { wizSkip(); openImport(); };
   const cl = $('#wizClose'); if (cl) cl.onclick = () => { $('#dlgWiz').close(); ssSet('klc-wiz', ''); runSync(true); };
   const ck = $('#wizCheck'); if (ck) ck.onclick = () => { ssSet('klc-wiz', 'check'); location.reload(); };
   if (step === 'check') setTimeout(() => { if (!syncOn && wizAt === 'check') { ssSet('klc-wiz', ''); wizGo('trouble'); } }, 2500);
@@ -455,6 +593,9 @@ function wizGo(step) {
   const st = document.createElement('style');
   st.textContent = `
 #btnSettings.dot{position:relative}#btnSettings.dot::after{content:"";position:absolute;top:-3px;right:-3px;width:9px;height:9px;border-radius:50%;background:var(--shame);border:2px solid var(--bg)}
+.gdstore{background:none;border:0;padding:0;cursor:pointer;font:inherit;font-family:var(--mono);font-size:.74rem;color:var(--muted)}.gdstore i{width:7px;height:7px;border-radius:50%;display:inline-block;background:var(--warn)}
+.gdstore[data-k=ok] i{background:var(--ok)}.gdstore[data-k=err] i{background:var(--shame)}.gdstore[data-k=run] i{background:var(--accent)}.gdstore[data-k=tap]{text-decoration:underline dotted}
+.bmsteps{margin:6px 0 0;padding-left:20px;font-size:.84rem;display:flex;flex-direction:column;gap:4px}
 .newtag{display:none;margin-left:8px;vertical-align:2px;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#fff;background:var(--shame);border-radius:999px;padding:1px 7px}
 #scriptSect.fresh{outline:2px solid var(--shame);outline-offset:6px;border-radius:4px;transition:outline-color .3s}#scriptSect.fresh .newtag{display:inline-block}
 .news summary{cursor:pointer;font-size:.85rem;font-weight:600}.news p{margin:8px 0 2px;font-size:.82rem}.news ul{margin:0;padding-left:18px;font-size:.82rem}
@@ -476,6 +617,7 @@ function wizGo(step) {
 .warnline{font-size:.84rem;border-left:3px solid var(--warn);padding:6px 10px;background:var(--bg);border-radius:0 6px 6px 0;margin-top:6px}.warnline a{color:inherit}
 .wizdlg:focus,.wiz :focus:not(:focus-visible){outline:none}.wiz a.btn{text-decoration:none}
 .forcedlg::backdrop{background:rgba(0,0,0,.28)}.forcedlg{border:1px solid var(--rule);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.45);background:var(--paper);color:var(--ink)}.forceicon{font-size:2rem;line-height:1;color:var(--accent)}
+.wpick{display:flex;flex-direction:column;gap:10px;text-align:left}.wpick .btn{display:flex;flex-direction:column;gap:2px;padding:12px 14px;white-space:normal}.wpick .btn span{font-weight:400;font-size:.82rem;opacity:.8}
 .wizdlg{max-width:min(560px,calc(100vw - 32px));width:100%}
 .wiz{text-align:center;display:flex;flex-direction:column;gap:14px}.wiz h2{font-size:1.4rem}.wiz p{margin:0}
 .wiz .count{font-family:var(--mono);font-size:.72rem;color:var(--muted);letter-spacing:.08em;margin-top:-6px}

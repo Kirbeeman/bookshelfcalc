@@ -1,19 +1,31 @@
-# Changelog
+# Shelf of Shame changelog
 
 Newest first. The latest release is described in full; earlier ones are listed by title.
 
 ---
 
-## v1.52 (latest)
+## v2.0 (latest)
 
-**Behind-the-scenes cleanup**
+**Shelf of Shame: phones, Google Drive and truer numbers**
 
-- Leftover code from an older way of hosting the page (saving to an online account, and a different way of downloading files) has been removed. It never ran on this site, so nothing changes: your library, backups and spreadsheet downloads work exactly as before.
+Everything tested on the beta site goes live.
+
+- **New name and look.** The calculator is now **Shelf of Shame**, with its own icon (a book with its price tag still on; a jack-o'-lantern book in the Halloween theme) and link previews when you share the site.
+- **New theme: Fruit.** Frosted glass panels over a soft, colorful background, following your device's light or dark setting. iPhones, iPads and Macs start in Fruit until you pick a theme.
+- **Phones and iPads, nothing to install.** A **Shelf sync** bookmark reads your books, purchase dates and prices on amazon.com and sends them to the page. One tap on **Set up the bookmark** copies it and walks you through saving it. A [getting-started guide](https://bookshelf.kirbee213.tv/help) covers every device, and there's a step-by-step [iPhone and iPad guide](https://bookshelf.kirbee213.tv/ioshelp).
+- **Google Drive (optional).** Keep your library in one file in your own Drive, so your phone and computers show the same books. Changes made on each are merged book by book.
+- **Truer numbers.** Computers now build your library from Amazon's Content & Devices list, like phones, so prices paid land on the right books. Dictionaries and user guides that came with your Kindle are left out (a Settings checkbox counts them), books with no order behind them count as free, and a book that was listed twice is folded into one.
+- **Settings** shows which version of the app and the sync script you have, and closes when you click outside it.
+- **Smaller things:** genres guessed from titles when Amazon has no page, a 15-book shelf on phones, faster on big libraries, cleaner titles (no more `&amp;`), and the oldest unread book named first.
+- **The sync script also runs in Userscripts**, the free script app for iPhone, iPad and Mac, as well as Tampermonkey.
+
+**This release needs a script update.** The page asks for it the first time you open it. If Tampermonkey then lists both "Kindle Library Calculator" and "Shelf of Shame", delete "Kindle Library Calculator". Your library on this site isn't touched. Libraries kept on the beta site stay there; to bring one over, connect Google Drive on both, or use **Back up library** and **Import a file**.
 
 ---
 
 ## Earlier versions
 
+- **v1.52** Behind-the-scenes cleanup
 - **v1.51** Version numbers in Settings, and click outside to close
 - **v1.50** This year so far, and a clearer By status card
 - **v1.49** No more candles on the shelf
