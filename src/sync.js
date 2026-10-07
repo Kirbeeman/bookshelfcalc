@@ -5,7 +5,7 @@ const kpWaiters = {}; let kpSeq = 0, kpRunning = false, lastSyncMsg = '';
 let storeReady = Promise.resolve(), syncing = false, syncOn = false, bridgeWaiters = null;
 const hasCore = typeof KLC_CORE !== 'undefined';
 const postBridge = m => window.postMessage(Object.assign({klc: 1}, m), location.origin === 'null' ? '*' : location.origin);
-function setSync(msg, kind) { const el = $('#sync'); const sc = document.getElementById('syncCard'); el.hidden = !!(sc && !sc.hidden); el.className = 'store ' + (kind || ''); el.querySelector('span').textContent = msg; }
+function setSync(msg, kind) { const el = $('#sync'); const sc = document.getElementById('syncCard'); el.hidden = !!(sc && !sc.hidden); el.className = 'store ' + ({db: 'st-ok', local: 'st-bad'}[kind] || 'st-wait'); /* done, a problem, or still going */ el.querySelector('span').textContent = msg; }
 
 function enableSync() {
   if (syncOn) return;
@@ -13,7 +13,7 @@ function enableSync() {
   $('#btnSync').hidden = false;
   $('#bannerImport').textContent = 'Sync now';
   const p = $('#demoBanner p'); if (p) p.innerHTML = '<strong>This is an example library.</strong> Your first sync replaces it with your Kindle library and Goodreads shelves.';
-  setSync('Connected to the sync script');
+  setSync('Connected to the sync script', 'db');
   wizConnected();
   renderScriptSect();
   if (!document.getElementById('dlgWiz')?.open && !document.getElementById('dlgForce')?.open) runSync(false); // no syncing with an out-of-date script // mid-setup, the last setup step starts the sync once they've signed in
@@ -28,7 +28,10 @@ window.addEventListener('message', e => {
 });
 // ---------- phone sync bookmark: amazon.com opens this page with #bm and hands over what it read there ----------
 // The bookmark is tiny (phone browsers cut off long bookmarks): it loads bm.js from this site, which does the work on amazon.com
-const bookmarkletCode = () => `javascript:(()=>{const s=document.createElement('script');s.src='${location.origin}/bm.js?'+Date.now();document.body.appendChild(s)})()`;
+// The bookmark checks the signed release before running anything: it fetches release.json, checks its signature with the
+// public key below, then loads bm.js with the signed fingerprint so the browser refuses any other file.
+const SIGN_KEY = '__SIGN_KEY__';
+const bookmarkletCode = () => `javascript:(async()=>{const S='${location.origin}/',K='${SIGN_KEY}',a=u=>Uint8Array.from(atob(u),c=>c.charCodeAt(0)),E=()=>alert('Shelf sync stopped: its code could not be checked as genuine, so nothing was run.');try{const r=await(await fetch(S+'release.json?'+Date.now())).json(),c=crypto.subtle,k=await c.importKey('spki',a(K),{name:'ECDSA',namedCurve:'P-256'},0,['verify']);if(!await c.verify({name:'ECDSA',hash:'SHA-256'},k,a(r.sig),new TextEncoder().encode(r.text)))throw 0;const m=JSON.parse(r.text),s=document.createElement('script');s.src=S+'bm.js?v='+m.version;s.integrity=m.files['bm.js'];s.crossOrigin='anonymous';s.onerror=E;document.body.appendChild(s)}catch(e){E()}})()`;
 function initPhoneSync() {
   if (location.hash !== '#bm' || !window.opener) return;
   const AMZ = /^https:\/\/www\.amazon\.(com|co\.uk|ca|com\.au)$/;
@@ -91,6 +94,7 @@ function startSync() {
   if (MOBILE && S.demo) { const p = $('#demoBanner p'); if (p) p.innerHTML = '<strong>This is an example library</strong> of public-domain classics so you can see how it works. Tap <b>Get started</b> to bring in your own books from Amazon, Google Drive or a file.'; const bi = $('#bannerImport'); if (bi) bi.textContent = 'Get started'; }
   initPhoneSync();
   initDrive();
+  storeReady.then(() => setTimeout(showNotice, 1800));
   if (hasCore) { enableSync(); return; }
   postBridge({type: 'hello'});
   if (location.protocol === 'file:') return;
@@ -100,9 +104,9 @@ function startSync() {
     // First visit (still on the example) or coming back mid-setup: walk them through it
     if (resume || (S.demo && !lsFlag('klc-wiz-skip'))) { openWizard(resume || 'welcome'); return; }
     // Has their own books but no script answered: say so, with a way into setup (unless they sync with the bookmark)
-    const el = $('#sync'); el.hidden = false; el.className = 'store local';
+    const el = $('#sync'); el.hidden = false; el.className = 'store st-bad';
     let bmLast = 0; try { bmLast = +(localStorage.getItem('klc-bm-last') || 0); } catch {}
-    if (bmLast) { el.className = 'store db'; el.querySelector('span').textContent = `Last synced with the sync bookmark ${new Date(bmLast).toLocaleDateString([], {month: 'short', day: 'numeric'})}`; renderScriptSect(); return; }
+    if (bmLast) { el.className = 'store st-ok'; el.querySelector('span').textContent = `Last synced with the sync bookmark ${new Date(bmLast).toLocaleDateString([], {month: 'short', day: 'numeric'})}`; renderScriptSect(); return; }
     el.querySelector('span').innerHTML = 'Sync script not detected, so prices, pages and genres are guesses. <a href="#" id="syncHelp" style="color:inherit">Set up sync</a>';
     $('#syncHelp').onclick = e => { e.preventDefault(); openWizard('welcome'); };
     renderScriptSect();
@@ -133,16 +137,20 @@ function normGoodreads(list) {
   })).filter(b => b.title);
 }
 
-const DEVICE_EXTRA = /dictionar|diccionario|dictionnaire|dicion[aá]rio|w[oö]rterbuch|woordenboek|vocabolario|shabd|kosh|lingvo|词典|辞典|辞泉|daijisen|zingarelli|priberam|duden|munjid|user'?s guide|benutzerhandbuch|gu[ií]a del usuario|guide d.utilisation|gebruikershandleiding|guia do usu[aá]rio|guida all.uso|用户指南|yuza gaido/i;
 const ORIGIN = {purchase:'purchase', sharing:'shared', kindleunlimited:'ku', prime:'prime', primereading:'prime', sample:'sample', publiclibrarylending:'other', personallending:'other', rental:'other', koll:'other', freetrial:'free', comicsunlimited:'ku'};
 // Real purchase dates from Amazon replace missing or estimated ones; Kindle's "Mark as read" marks a book finished
 function applyOwnership(items) {
   if (!items || !items.length) return 0;
   const byAsin = new Map(items.map(i => [String(i.asin || '').toUpperCase(), i]));
+  // Books Amazon listed before but no longer does were returned (or removed): kept in the list, left out of the totals.
+  // Only from a list that looks complete, so a short answer from Amazon can't mark half the library returned.
+  const seen = S.books.filter(b => b.asin && (b.cdSeen || (b.dateEst === false && !b.dateManual)));
+  const complete = items.length >= seen.length * .8;
   let n = 0;
   for (const b of S.books) {
     const o = b.asin && byAsin.get(b.asin.toUpperCase());
-    if (!o) continue;
+    if (!o) { if (complete && seen.includes(b) && !b.returned) b.returned = true; continue; }
+    b.cdSeen = true; if (b.returned) delete b.returned;
     const d = o.acquiredTime ? new Date(+o.acquiredTime).toISOString().slice(0,10) : toDate(o.acquiredDate);
     if (d && (!b.date || b.dateEst || b.date !== d) && !b.dateManual) { b.date = d; b.dateEst = false; }
     if (d) n++;
@@ -153,6 +161,7 @@ function applyOwnership(items) {
     if (src === 'purchase' && !o.orderDetailURL && !o.orderId && !b.sourceManual && !(hasPaid(b) && b.priceSrc !== 'order')) b.source = DEVICE_EXTRA.test(b.title) ? 'device' : 'free';
     if (/^READ$/i.test(o.readStatus || '') && !b.lock && b.status !== 'finished') { b.status = 'finished'; b.progress = 100; }
   }
+  markExtras();
   return n;
 }
 async function runSync(force) {
@@ -246,7 +255,7 @@ async function lookupBookInfo() {
         done++;
       }
       renderStats(); renderShelf(); scheduleSave();
-      if (res.blocked) { setSync(`${lastSyncMsg} · Amazon paused lookups after ${done}; the rest continue next visit`, 'local'); stage('details', 'err', `${fmtInt(done)} of ${fmtInt(todo.length)}`, done / todo.length); cardError('details', 'Amazon asked us to slow down. The rest of the book details fill in on your next visit.', true); return; }
+      if (res.blocked) { setSync(`${lastSyncMsg} · Amazon paused lookups after ${done}; the rest continue next visit`, 'wait'); stage('details', 'err', `${fmtInt(done)} of ${fmtInt(todo.length)}`, done / todo.length); cardError('details', 'Amazon asked us to slow down. The rest of the book details fill in on your next visit.', true); return; }
     }
     genreStatus('');
     setSync(`${lastSyncMsg}${done ? ` · details for ${done} books` : ''}`, 'db');
@@ -294,6 +303,45 @@ function forceUpdate(v) {
   if (!d.open) d.showModal();
 }
 
+// ---------- a one-time notice for a new version (looks like the update dialog and follows the theme) ----------
+const NOTICE = 'signed-2.1';
+const NOTICE_ICONS = {
+  thanks: '<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>',
+  safe: '<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>'
+};
+function showNotice() {
+  let seen = ''; try { seen = localStorage.getItem('klc-notice') || ''; } catch { return; }
+  if (seen === NOTICE) return;
+  // new people (still on the example) have nothing to be thanked for yet; they just don't see it
+  if (S.demo) { lsSet1('klc-notice', NOTICE); return; }
+  // never on top of the update dialog or the setup walk-through: wait until they're closed
+  if (document.querySelector('dialog[open]')) { setTimeout(showNotice, 3000); return; }
+  const d = document.createElement('dialog'); d.id = 'dlgNotice'; d.className = 'wizdlg forcedlg';
+  const done = () => { lsSet1('klc-notice', NOTICE); d.close(); d.remove(); };
+  d.addEventListener('cancel', e => { e.preventDefault(); done(); });
+  document.body.append(d);
+  const page = n => {
+    const dots = `<div class="pp">${[1, 2].map(i => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</div><div class="count">PAGE ${n} OF 2</div>`;
+    d.innerHTML = `<div class="dlg wiz">` + (n === 1 ? `${dots}
+      <div class="forceicon" aria-hidden="true">${NOTICE_ICONS.thanks}</div>
+      <h2>Thank you</h2>
+      <p>Thanks for using the Shelf of Shame, and for sticking with it through every update. Your ideas, bug reports and patience are what keep it getting better, and I'm grateful for every one of you.</p>
+      <div class="row wnav"><span></span><button type="button" class="btn primary" id="noticeNext">Next</button></div>`
+      : `${dots}
+      <div class="forceicon" aria-hidden="true">${NOTICE_ICONS.safe}</div>
+      <h2>Keeping your data safe</h2>
+      <p>I'm committed to keeping the Shelf of Shame safe and secure. The sync reads your books, prices and order dates from Amazon and Goodreads, and that should only ever end up with you.</p>
+      <p>So this version adds a new layer of protection: the sync bookmark and the sync script now check that their code is genuine, signed by me, before they run. Even if someone broke into the website or its code, they couldn't use it to get at your data.</p>
+      <div class="wwarn">There may be a few hiccups while this settles in. If something looks off, reload the page or sync again. ${MOBILE ? 'Sync from your phone? Set up the bookmark once more: <b>Settings › Set up the bookmark</b>.' : ''}</div>
+      <p>The added layer of security is worth it. Thanks for bearing with me.<br><b>Daniel</b></p>
+      <div class="row wnav"><button type="button" class="btn" id="noticeBack">Back</button><button type="button" class="btn primary" id="noticeDone">Got it</button></div>`) + `</div>`;
+    const go = $('#noticeNext'), bk = $('#noticeBack'), ok = $('#noticeDone');
+    if (go) go.onclick = () => page(2); if (bk) bk.onclick = () => page(1); if (ok) ok.onclick = done;
+    (go || ok).focus();
+  };
+  page(1); d.showModal(); $('#noticeNext').focus();
+}
+
 // ---------- small storage helpers (storage can be blocked; nothing here may throw) ----------
 const ssGet = k => { try { return sessionStorage.getItem(k) || ''; } catch { return ''; } };
 const ssSet = (k, v) => { try { v ? sessionStorage.setItem(k, v) : sessionStorage.removeItem(k); } catch {} };
@@ -302,7 +350,17 @@ const lsSet1 = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.r
 
 // ---------- what's new (shown in Settings) ----------
 const CHANGES = [
-  ['2.0', ['Now called Shelf of Shame, with its own icon and a new Fruit theme (frosted glass, follows your device)', 'Sync from a phone or iPad with a bookmark, no install needed (Settings › Sync from your phone)', 'Keep your library in your own Google Drive so your phone and computer match', 'Truer numbers: your library comes from Content & Devices so prices paid land on the right books, and dictionaries and guides that came with your Kindle are left out']],
+  ['2.1.1.0', ['Signed code: the phone bookmark and the sync script only run code signed with the Shelf of Shame key. Set up the bookmark once more, and update the sync script once', 'A Content Security Policy on every page, and a getting-started guide for every device at /help', 'Up to 100 unread books on at most 3 shelves, with the decorations kept', 'Truer numbers: 99.5% instead of a rounded 100%, dictionaries and returned books left out, and no dictionary as your oldest unread book', 'Status dots in the same green, yellow and red in every theme']],
+  ['2.1.0.0.10', ['Dictionaries stay out of the count even when a copy of your library from an older version (through Google Drive) brings them back as purchases']],
+  ['2.1.0.0.9', ['Your oldest unread book is never a dictionary or user guide, even with Kindle extras counted']],
+  ['2.1.0.0.8', ['Dictionaries and user guides that came with your Kindle are no longer counted as bought books, even when Amazon files them with an order', 'Books you returned to Amazon are marked Returned and left out of the totals (they come back by themselves if they show up in your Amazon library again)']],
+  ['2.1.0.0.7', ['Books added per year: the small arrows on cut-off bars are gone (they looked like 1s); the break mark still shows a bar is cut off', 'The reading-status rings and table show 99.5% instead of rounding to 100%']],
+  ['2.1.0.0.6', ['The status dots under the title use the same colors in every theme: green when saved or synced, yellow while waiting or syncing, red when something went wrong']],
+  ['2.1.0.0.5', ['Unread shares near 0% or 100% show a decimal (99.5%) instead of rounding to 100% when you have read a few books', 'New wording when you have barely started your library, or not started it at all']],
+  ['2.1.0.0.4', ['The full bookcase keeps room at the end of its last shelf for the bookend, plants and other decorations']],
+  ['2.1.0.0.3', ['On a computer the bookcase is 3 shelves tall at most and holds up to 100 unread books, with thinner spines when it needs them; the rest are counted below it']],
+  ['2.1.0.0.2', ['Signed code: the phone bookmark and the sync script now only run code signed with the Shelf of Shame key, so nobody else can change what runs in your Amazon account. Set up the bookmark once more, and update the sync script once']],
+  ['2.1.0.0.1', ['Security: every page now tells your browser to run only the Shelf of Shame\'s own code and Google\'s sign-in, and to talk only to this site, Google Fonts and Google Drive', 'A getting-started guide for every device at /help']],
   ['2.0.0.0.16', ['Your oldest unread book is named first, as in "Moby-Dick has been waiting this long for you to read it"']],
   ['2.0.0.0.15', ['Fixed: the phone sync bookmark stopped with "Can\'t find variable: unHtml"']],
   ['2.0.0.0.14', ['The sync script cleans up titles and authors as it reads them from Amazon (no more &amp;). This one needs a script update']],
@@ -593,8 +651,8 @@ function wizGo(step) {
   const st = document.createElement('style');
   st.textContent = `
 #btnSettings.dot{position:relative}#btnSettings.dot::after{content:"";position:absolute;top:-3px;right:-3px;width:9px;height:9px;border-radius:50%;background:var(--shame);border:2px solid var(--bg)}
-.gdstore{background:none;border:0;padding:0;cursor:pointer;font:inherit;font-family:var(--mono);font-size:.74rem;color:var(--muted)}.gdstore i{width:7px;height:7px;border-radius:50%;display:inline-block;background:var(--warn)}
-.gdstore[data-k=ok] i{background:var(--ok)}.gdstore[data-k=err] i{background:var(--shame)}.gdstore[data-k=run] i{background:var(--accent)}.gdstore[data-k=tap]{text-decoration:underline dotted}
+.gdstore{background:none;border:0;padding:0;cursor:pointer;font:inherit;font-family:var(--mono);font-size:.74rem;color:var(--muted)}
+.gdstore[data-k=tap]{text-decoration:underline dotted}
 .bmsteps{margin:6px 0 0;padding-left:20px;font-size:.84rem;display:flex;flex-direction:column;gap:4px}
 .newtag{display:none;margin-left:8px;vertical-align:2px;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#fff;background:var(--shame);border-radius:999px;padding:1px 7px}
 #scriptSect.fresh{outline:2px solid var(--shame);outline-offset:6px;border-radius:4px;transition:outline-color .3s}#scriptSect.fresh .newtag{display:inline-block}

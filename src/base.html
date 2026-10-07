@@ -215,8 +215,9 @@ button{cursor:pointer}
 header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--rule);padding-block:14px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
 .brand{display:flex;flex-direction:column;gap:2px}
 .store{font-family:var(--mono);font-size:.74rem;color:var(--muted);display:flex;align-items:center;gap:6px}
-.store i{width:7px;height:7px;border-radius:50%;background:var(--muted);display:inline-block}
-.store.db i{background:var(--ok)} .store.local i{background:var(--warn)} .store.demo i{background:var(--accent)}
+/* Status dots use the same colors in every theme: green done, yellow waiting or working, red a problem, gray nothing to report */
+.store i{width:7px;height:7px;border-radius:50%;background:#8a8f8b;display:inline-block;flex:none;box-shadow:0 0 0 1px rgba(0,0,0,.28)}
+.store.st-ok i,.gdstore[data-k=ok] i{background:#22a55a} .store.st-wait i,.gdstore[data-k=run] i,.gdstore[data-k=tap] i{background:#f0b429} .store.st-bad i,.gdstore[data-k=err] i{background:#e5484d}
 .actions{display:flex;flex-wrap:wrap;gap:8px}
 
 .notice{border:1px solid var(--rule);border-left:4px solid var(--warn);background:var(--paper);border-radius:8px;padding:10px 12px 10px 16px;display:flex;gap:12px;align-items:flex-start;justify-content:space-between;font-size:.9rem}
@@ -456,7 +457,7 @@ textarea{width:100%;min-height:110px;font-family:var(--mono);font-size:.78rem;re
   <header class="top">
     <div class="brand">
       <h1>Shelf of Shame</h1>
-      <div class="store demo" id="store"><i></i><span>Example library</span></div>
+      <div class="store st-none" id="store"><i></i><span>Example library</span></div>
     </div>
     <div class="actions">
       <button class="btn" id="btnAdd">Add book</button>
@@ -734,10 +735,10 @@ window.addEventListener('pagehide', flushSave);
 document.addEventListener('visibilitychange', () => { if (document.hidden) flushSave(); });
 function setStore(state, msg) {
   const el = $('#store'), sp = el.querySelector('span');
-  el.className = 'store ' + (S.demo ? 'demo' : S.mode);
+  el.className = 'store ' + (S.demo ? 'st-none' : state === 'saving' ? 'st-wait' : 'st-ok');
   if (S.demo) sp.textContent = 'Example library · not saved';
   else if (state === 'saving') sp.textContent = 'Saving…';
-  else if (state === 'error') { sp.textContent = msg; el.className = 'store local'; }
+  else if (state === 'error') { sp.textContent = msg; el.className = 'store st-bad'; }
   else sp.textContent = 'Saved in this browser only';
   $('#demoBanner').hidden = !S.demo;
 }
@@ -751,7 +752,15 @@ function leaveDemo(clear) {
 const fmtMoney = v => { try { return new Intl.NumberFormat(undefined, {style:'currency', currency:S.settings.currency, maximumFractionDigits: v >= 1000 ? 0 : 2}).format(v); } catch { return '$' + v.toFixed(2); } };
 const fmtInt = v => Math.round(v).toLocaleString();
 const fmtHours = h => h < 1 ? Math.round(h * 60) + ' min' : fmtInt(h) + ' h';
+// Dictionaries and user guides that come with a Kindle, known by their titles (Amazon files some of them as purchases)
+const DEVICE_EXTRA = /dictionar|diccionario|dictionnaire|dicion[aá]rio|w[oö]rterbuch|woordenboek|vocabolario|shabd|kosh|lingvo|词典|辞典|辞泉|daijisen|zingarelli|priberam|duden|munjid|user'?s guide|benutzerhandbuch|gu[ií]a del usuario|guide d.utilisation|gebruikershandleiding|guia do usu[aá]rio|guida all.uso|用户指南|yuza gaido/i;
+// Dictionaries and user guides come free with a Kindle, even when Amazon's list files them with an order: they're Kindle
+// extras (not counted unless Settings says so), unless a price was really paid for one. Checked on every redraw, because
+// a copy of the library synced by an older version (through Google Drive) can bring them back as purchases.
+const isExtra = b => !b.sourceManual && DEVICE_EXTRA.test(b.title || '') && !(hasPaid(b) && +b.price > 0);
+function markExtras() { let n = 0; for (const b of S.books) if (b.source === 'purchase' && isExtra(b)) { b.source = 'device'; n++; } return n; }
 const counted = b => {
+  if (b.returned) return false;
   if (b.source === 'sample' && !S.settings.samples) return false;
   if (b.source === 'device' && !S.settings.extras) return false;
   if ((b.source === 'ku' || b.source === 'prime' || b.source === 'other' || b.source === 'shared') && !S.settings.borrowed) return false;
@@ -957,6 +966,10 @@ function comicSvg(gs) {
 // The last shelf's leftover space gets a bookend and these, in order; ORNAMENTS are the small things set between books now and then (Default spine colors only)
 const DECOR_SETS = {halloween: ['pumpkin', 'potion', 'pumpkin', 'potion', 'pumpkin'], cozy: ['stack', 'plant', 'vase', 'succulent', 'box', 'plant'], default: ['plant', 'stack', 'vase', 'succulent', 'box', 'plant']};
 const ORNAMENTS = {halloween: ['pumpkin', 'potion'], cozy: ['succulent', 'vase', 'box', 'stack'], default: ['succulent', 'vase', 'box', 'stack']};
+let shelfMemo = {};
+// A share as a whole percent, except near the ends: 3 books read out of 659 is 99.5% unread, never a rounded-up 100%
+const pctText = p => (p > 0 && p < 1 ? Math.max(.1, Math.round(p * 10) / 10) : p > 99 && p < 100 ? Math.min(99.9, Math.floor(p * 10) / 10) : Math.round(p)) + '%';
+const DECOR_ROOM = 340; // px kept free at the end of a computer's full bookcase for the bookend and decorations
 function decorShelf() {
   const bc = document.querySelector('#stack .bookcase'); if (!bc) return;
   bc.querySelectorAll('.decor:not(.orn)').forEach(n => n.remove());
@@ -980,7 +993,7 @@ function decorShelf() {
   bc.insertAdjacentHTML('beforeend', picks.map(k => `<span class="decor" aria-hidden="true" style="width:${DECOR[k][0]}px;height:${DECOR[k][1]}px;margin-left:${Math.floor(22 + extra)}px">${DECOR[k][2]}</span>`).join(''));
 }
 
-function renderAll() { fixEntities(); if (S.settings.theme && typeof applyTheme === 'function') { applyTheme(S.settings.theme); try { localStorage.setItem('klc-theme-picked', '1'); } catch {} } trackReading(); fillGuesses(); setStore(); $('#spDefault').setAttribute('aria-pressed', S.settings.spineMode !== 'genre'); $('#spGenre').setAttribute('aria-pressed', S.settings.spineMode === 'genre'); renderStats(); renderShelf(); setTimeout(lookupGenres, 0); }
+function renderAll() { if (!S.demo && markExtras()) scheduleSave(); fixEntities(); if (S.settings.theme && typeof applyTheme === 'function') { applyTheme(S.settings.theme); try { localStorage.setItem('klc-theme-picked', '1'); } catch {} } trackReading(); fillGuesses(); setStore(); $('#spDefault').setAttribute('aria-pressed', S.settings.spineMode !== 'genre'); $('#spGenre').setAttribute('aria-pressed', S.settings.spineMode === 'genre'); renderStats(); renderShelf(); setTimeout(lookupGenres, 0); }
 
 function renderStats() {
   const bs = S.books.filter(counted);
@@ -1000,8 +1013,8 @@ function renderStats() {
 
   $('#tBooks').textContent = fmtInt(n);
   const hidden = S.books.length - n;
-  const why = {shared:['shared with you (Family Library)'], ku:['Kindle Unlimited'], prime:['Prime Reading'], other:['borrowed or library loan', 'borrowed or library loans'], sample:['sample', 'samples'], device:['dictionary or user guide that came with your Kindle', 'dictionaries and user guides that came with your Kindle']};
-  const nc = {}; S.books.forEach(b => { if (!counted(b)) nc[b.source] = (nc[b.source] || 0) + 1; });
+  const why = {returned:['returned to Amazon (or no longer in your Amazon library)', 'returned to Amazon (or no longer in your Amazon library)'], shared:['shared with you (Family Library)'], ku:['Kindle Unlimited'], prime:['Prime Reading'], other:['borrowed or library loan', 'borrowed or library loans'], sample:['sample', 'samples'], device:['dictionary or user guide that came with your Kindle', 'dictionaries and user guides that came with your Kindle']};
+  const nc = {}; S.books.forEach(b => { if (!counted(b)) { const k = b.returned ? 'returned' : b.source; nc[k] = (nc[k] || 0) + 1; } });
   const tip = `<span class="tipbox" role="tooltip"><strong>Not counted</strong> means books you didn't buy yourself. They stay in your library but are left out of the totals, value, charts and Shelf of Shame:<ul>${Object.keys(why).filter(k => nc[k]).map(k => `<li>${nc[k]} ${why[k][nc[k] === 1 ? 0 : why[k].length - 1]}</li>`).join('')}</ul>See them with the <strong>Not counted</strong> button under Your library. To include them, turn them on in <strong>Settings</strong>, or click a book and change <strong>How you got it</strong>.</span>`;
   $('#tBooksSub').innerHTML = `${fmtInt(by.finished.length)} finished` + (hidden ? ` · <span class="tip" tabindex="0">${hidden} not counted${tip}</span>` : '');
   const mask = v => S.showMoney ? fmtMoney(v) : '••••••';
@@ -1025,7 +1038,7 @@ function renderStats() {
   const pk = Object.keys(PACES).find(k => PACES[k] === S.settings.pagesPerDay);
   document.querySelectorAll('[data-pace]').forEach(b => b.setAttribute('aria-pressed', b.dataset.pace === pk));
   $('#paceNote').textContent = `${S.settings.pagesPerDay} pages a day` + (pk ? '' : ' (custom, set in Settings)');
-  $('#tUnread').textContent = Math.round(pct) + '%';
+  $('#tUnread').textContent = pctText(pct);
   $('#tUnreadSub').textContent = `${fmtInt(pile.length)} of ${fmtInt(n)} books never opened`;
 
   // pile
@@ -1037,78 +1050,107 @@ function renderStats() {
   if (!pile.length) {
     stack.innerHTML = n ? '<div class="pile-empty">The shelf is empty. Every book has been opened.</div>' : '<div class="pile-empty muted">Import your library to fill the shelf.</div>';
   } else {
-    const SHELF = window.matchMedia('(max-width: 640px)').matches ? 15 : 100; // a phone gets a short shelf; the rest is counted below it
-    // Within any group: just-bought books first (newest first), then the longest-waiting
-    const pickOrder = list => [...list.filter(isNew).sort((a,b) => b.date.localeCompare(a.date)), ...list.filter(b => !isNew(b)).sort((a,b) => (a.date || '9').localeCompare(b.date || '9'))];
-    let shown, globeG = [], comicG = [], globeSmallest = false;
-    if (S.settings.spineMode === 'genre') {
-      // The shelf doubles as a chart: each genre gets spines in proportion to its share of the unread pile, grouped together, biggest first
-      const groups = {}; pile.forEach(b => { const g = GENRES[b.genre] ? b.genre : 'unknown'; (groups[g] ||= []).push(b); });
-      let slots = Math.min(SHELF, pile.length);
-      let keys = Object.keys(groups).sort((a, b) => groups[b].length - groups[a].length);
-      // A phone's 10 spines are 10% each, too coarse for small genres: under 5% they're the lands on a spinning globe, under 3% a comic lying on the shelf
-      if (SHELF <= 15 && pile.length > SHELF) {
-        const share = g => groups[g].length / pile.length;
-        // Unknown isn't a genre, so it never becomes globe land or comic panels (it stays in the key below)
-        // One spine is 1/15 of the pile: under that a genre is globe land, under half that it's on the comic
-        const spine = 1 / SHELF;
-        comicG = keys.filter(g => g !== 'unknown' && share(g) < spine / 2); globeG = keys.filter(g => g !== 'unknown' && share(g) >= spine / 2 && share(g) < spine);
-        // The globe is always there: if no genre falls in its range, it takes the smallest genre that would have had spines
-        if (!globeG.length) { const rest = keys.filter(g => g !== 'unknown' && !comicG.includes(g)); if (rest.length > 1) { globeG = [rest[rest.length - 1]]; globeSmallest = true; } }
-        keys = keys.filter(g => !globeG.includes(g) && !comicG.includes(g) && !(g === 'unknown' && share(g) < spine));
-        if (globeG.length) slots--;
+    const PHONE = window.matchMedia('(max-width: 640px)').matches; // a phone gets a short shelf; the rest is counted below it
+    const drawShelf = (SHELF, maxPiles, scale) => {
+      // Within any group: just-bought books first (newest first), then the longest-waiting
+      const pickOrder = list => [...list.filter(isNew).sort((a,b) => b.date.localeCompare(a.date)), ...list.filter(b => !isNew(b)).sort((a,b) => (a.date || '9').localeCompare(b.date || '9'))];
+      let shown, globeG = [], comicG = [], globeSmallest = false;
+      if (S.settings.spineMode === 'genre') {
+        // The shelf doubles as a chart: each genre gets spines in proportion to its share of the unread pile, grouped together, biggest first
+        const groups = {}; pile.forEach(b => { const g = GENRES[b.genre] ? b.genre : 'unknown'; (groups[g] ||= []).push(b); });
+        let slots = Math.min(SHELF, pile.length);
+        let keys = Object.keys(groups).sort((a, b) => groups[b].length - groups[a].length);
+        // A phone's 10 spines are 10% each, too coarse for small genres: under 5% they're the lands on a spinning globe, under 3% a comic lying on the shelf
+        if (PHONE && pile.length > SHELF) {
+          const share = g => groups[g].length / pile.length;
+          // Unknown isn't a genre, so it never becomes globe land or comic panels (it stays in the key below)
+          // One spine is 1/15 of the pile: under that a genre is globe land, under half that it's on the comic
+          const spine = 1 / SHELF;
+          comicG = keys.filter(g => g !== 'unknown' && share(g) < spine / 2); globeG = keys.filter(g => g !== 'unknown' && share(g) >= spine / 2 && share(g) < spine);
+          // The globe is always there: if no genre falls in its range, it takes the smallest genre that would have had spines
+          if (!globeG.length) { const rest = keys.filter(g => g !== 'unknown' && !comicG.includes(g)); if (rest.length > 1) { globeG = [rest[rest.length - 1]]; globeSmallest = true; } }
+          keys = keys.filter(g => !globeG.includes(g) && !comicG.includes(g) && !(g === 'unknown' && share(g) < spine));
+          if (globeG.length) slots--;
+        }
+        const big = keys.reduce((a, g) => a + groups[g].length, 0) || 1;
+        const exact = keys.map(g => groups[g].length / big * slots);
+        const seats = exact.map(Math.floor);
+        let left = slots - seats.reduce((a, b) => a + b, 0);
+        exact.map((x, i) => [x - seats[i], i]).sort((a, b) => b[0] - a[0]).forEach(([, i]) => { if (left > 0) { seats[i]++; left--; } }); // largest remainders get the leftover seats
+        shown = keys.flatMap((g, i) => pickOrder(groups[g]).slice(0, seats[i]));
+        // Just-bought books lead the whole shelf whatever their genre; the genre groups follow
+        shown = [...shown.filter(isNew).sort((a, b) => b.date.localeCompare(a.date)), ...shown.filter(b => !isNew(b))];
+      } else shown = pickOrder(pile).slice(0, SHELF);
+      const cloth = n => `var(--cloth-${n % 6 + 1})`;
+      const gmode = S.settings.spineMode === 'genre';
+      const tipOf = (b, p, nw) => `${esc(b.title)} — ${esc(b.author)} · ${p} pages${genreLabel(b) ? ' · ' + esc(genreLine(b)) + (tagsShown(b).length ? '\n' + esc(tagsShown(b).slice(0, 4).join(', ')) : b.genreSub && b.genreSub !== genreLabel(b) ? ' › ' + esc(b.genreSub) : '') : ''}${nw ? ' · bought ' + b.date : ''}`;
+      // One book's spine. In By genre mode a second genre shows as two bands in its color; otherwise the bands are decoration.
+      const spineOf = (b, i, flat) => {
+        const h = hash(b.id + b.title), p = pagesOf(b), nw = isNew(b);
+        const w = Math.round(Math.max(18, Math.min(46, 12 + p / 22)) * scale); // thinner spines when a full bookcase has to hold 100
+        const ht = 112 + (h % 46);
+        const r = (!flat && h % 23 === 0 && i > 0) ? -4 : 0, lean = !nw && r !== 0;
+        const c = gmode ? `var(--g-${GENRES[b.genre] ? b.genre : 'unknown'})` : cloth(h);
+        const two = gmode && b.genre2 && GENRES[b.genre2] && b.genre2 !== b.genre;
+        const cls = `spine ${two ? 'g2' : gmode ? 'plain' : 's' + (h >> 3) % 5}${nw ? ' new' : ''}${lean ? ' lean' : ''}`;
+        const size = flat ? `--len:${Math.round(ht * .78)}px;--th:${Math.max(15, Math.round(w * .72))}px;--dx:${(h >> 5) % 9}px` : `--h:${ht}px;--w:${w}px;--r:${lean ? r : 0}deg`;
+        return `<span class="${cls}" style="${size};--c:${c}${two ? `;--c2:var(--g-${b.genre2})` : ''}" title="${tipOf(b, p, nw)}"><b>${esc(b.title)}</b></span>`;
+      };
+      // Now and then two or three books lie flat in a little pile, like a real shelf (never the just-bought ones)
+      let html = '<div class="bookcase">', piles = 0;
+      for (let i = 0; i < shown.length; i++) {
+        const b = shown[i], h = hash(b.id + b.title);
+        if (!PHONE && piles < maxPiles && i > 2 && h % 11 === 0 && !isNew(b)) { // no piles on a phone's short shelf
+          const n = 2 + (h >> 4) % 2, seg = shown.slice(i, i + n), cut = seg.findIndex(isNew), pile2 = cut < 0 ? seg : seg.slice(0, cut);
+          if (pile2.length >= 2) { piles++; html += `<span class="lay">${pile2.map(x => spineOf(x, i, true)).join('')}</span>`; i += pile2.length - 1; continue; }
+        }
+        html += spineOf(b, i, false);
+        if (!gmode && i % 23 === 11 && i < shown.length - 3) { const set = ORNAMENTS[document.documentElement.dataset.theme] || ORNAMENTS.default, k = set[(i / 23 | 0) % set.length]; html += `<span class="decor orn" aria-hidden="true" style="width:${DECOR[k][0]}px;height:${DECOR[k][1]}px">${DECOR[k][2]}</span>`; }
       }
-      const big = keys.reduce((a, g) => a + groups[g].length, 0) || 1;
-      const exact = keys.map(g => groups[g].length / big * slots);
-      const seats = exact.map(Math.floor);
-      let left = slots - seats.reduce((a, b) => a + b, 0);
-      exact.map((x, i) => [x - seats[i], i]).sort((a, b) => b[0] - a[0]).forEach(([, i]) => { if (left > 0) { seats[i]++; left--; } }); // largest remainders get the leftover seats
-      shown = keys.flatMap((g, i) => pickOrder(groups[g]).slice(0, seats[i]));
-      // Just-bought books lead the whole shelf whatever their genre; the genre groups follow
-      shown = [...shown.filter(isNew).sort((a, b) => b.date.localeCompare(a.date)), ...shown.filter(b => !isNew(b))];
-    } else shown = pickOrder(pile).slice(0, SHELF);
-    const cloth = n => `var(--cloth-${n % 6 + 1})`;
-    const gmode = S.settings.spineMode === 'genre';
-    const tipOf = (b, p, nw) => `${esc(b.title)} — ${esc(b.author)} · ${p} pages${genreLabel(b) ? ' · ' + esc(genreLine(b)) + (tagsShown(b).length ? '\n' + esc(tagsShown(b).slice(0, 4).join(', ')) : b.genreSub && b.genreSub !== genreLabel(b) ? ' › ' + esc(b.genreSub) : '') : ''}${nw ? ' · bought ' + b.date : ''}`;
-    // One book's spine. In By genre mode a second genre shows as two bands in its color; otherwise the bands are decoration.
-    const spineOf = (b, i, flat) => {
-      const h = hash(b.id + b.title), p = pagesOf(b), nw = isNew(b);
-      const w = Math.round(Math.max(18, Math.min(46, 12 + p / 22)));
-      const ht = 112 + (h % 46);
-      const r = (!flat && h % 23 === 0 && i > 0) ? -4 : 0, lean = !nw && r !== 0;
-      const c = gmode ? `var(--g-${GENRES[b.genre] ? b.genre : 'unknown'})` : cloth(h);
-      const two = gmode && b.genre2 && GENRES[b.genre2] && b.genre2 !== b.genre;
-      const cls = `spine ${two ? 'g2' : gmode ? 'plain' : 's' + (h >> 3) % 5}${nw ? ' new' : ''}${lean ? ' lean' : ''}`;
-      const size = flat ? `--len:${Math.round(ht * .78)}px;--th:${Math.max(15, Math.round(w * .72))}px;--dx:${(h >> 5) % 9}px` : `--h:${ht}px;--w:${w}px;--r:${lean ? r : 0}deg`;
-      return `<span class="${cls}" style="${size};--c:${c}${two ? `;--c2:var(--g-${b.genre2})` : ''}" title="${tipOf(b, p, nw)}"><b>${esc(b.title)}</b></span>`;
+      if (globeG.length || comicG.length) {
+        const pct = g => `${GENRES[g]} ${Math.round(pile.filter(b => (GENRES[b.genre] ? b.genre : 'unknown') === g).length / pile.length * 100)}%`;
+        if (globeG.length) html += `<span class="gx gx-globe" data-g="${globeG.join(' ')}" title="${globeSmallest ? 'Your smallest genre' : `Genres under ${Math.round(100 / SHELF)}% of your unread books`}: ${esc(globeG.map(pct).join(', '))}">${smallGenreSvg(globeG)}</span>`;
+        if (comicG.length) html += `<span class="gx" title="Genres under ${Math.round(50 / SHELF)}% of your unread books: ${esc(comicG.map(pct).join(', '))}">${comicSvg(comicG)}</span>`;
+      }
+      html += '</div>';
+      const gl = $('#genreLegend');
+      if (S.settings.spineMode === 'genre') {
+        const cnt = {}; pile.forEach(b => { const g = GENRES[b.genre] ? b.genre : 'unknown'; cnt[g] = (cnt[g] || 0) + 1; });
+        gl.innerHTML = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a]).map(g => `<span${g === 'nonfiction' ? ` title="${esc([...new Set(pile.filter(b => b.genre === 'nonfiction').map(b => b.genreName).filter(Boolean))].join(', '))}"` : ''}><i style="background:var(--g-${g})"></i>${GENRES[g]} <span class="num muted">${cnt[g]} · ${Math.round(cnt[g] / pile.length * 100)}%</span></span>`).join('')
+          + (pile.some(b => b.genreSrc === 'guess') ? `<span class="muted">${fmtInt(pile.filter(b => b.genreSrc === 'guess').length)} genres are guessed from the book's title, because Amazon has no store page for them.</span>` : '')
+          + (globeG.length || comicG.length ? `<span class="muted">${globeG.length ? (globeSmallest ? `The globe holds your smallest genre, ${esc(GENRES[globeG[0]])}.` : `The globe holds the genres under ${Math.round(100 / SHELF)}%.`) : ''}${globeG.length && comicG.length ? ' ' : ''}${comicG.length ? `The comic holds the ones under ${Math.round(50 / SHELF)}%.` : ''}</span>` : '');
+        gl.hidden = false;
+      } else gl.hidden = true;
+      if (pile.length > shown.length) html += `<div class="more">+ ${fmtInt(pile.length - shown.length)} more that didn't fit on the shelf${S.settings.spineMode === 'genre' ? ', in the same proportions' : ''}</div>`;
+      stack.innerHTML = html;
     };
-    // Now and then two or three books lie flat in a little pile, like a real shelf (never the just-bought ones)
-    let html = '<div class="bookcase">';
-    for (let i = 0; i < shown.length; i++) {
-      const b = shown[i], h = hash(b.id + b.title);
-      if (SHELF > 15 && i > 2 && h % 11 === 0 && !isNew(b)) { // no piles on a phone's short shelf
-        const n = 2 + (h >> 4) % 2, seg = shown.slice(i, i + n), cut = seg.findIndex(isNew), pile2 = cut < 0 ? seg : seg.slice(0, cut);
-        if (pile2.length >= 2) { html += `<span class="lay">${pile2.map(x => spineOf(x, i, true)).join('')}</span>`; i += pile2.length - 1; continue; }
+    // A computer's bookcase has at most 3 shelves and holds up to 100 books. If they don't fit, the spines get thinner
+    // (and fewer books lie flat); only on a window too narrow for that do fewer books go on the shelves
+    const shelfFit = () => {
+      const bc = stack.querySelector('.bookcase'); if (PHONE || !bc) return 0;
+      const cs = getComputedStyle(bc), row = parseFloat(cs.lineHeight) || 176, top = bc.getBoundingClientRect().top + parseFloat(cs.borderTopWidth);
+      const rowOf = el => Math.floor((el.getBoundingClientRect().bottom - top - 1) / row);
+      // the end of the last shelf keeps room for the bookend and its plants, vases and the like (decorShelf puts them there)
+      const kids = [...bc.children], last = kids[kids.length - 1];
+      const full = rowOf(last) === 2 && bc.getBoundingClientRect().right - 20 - last.getBoundingClientRect().right < DECOR_ROOM;
+      if (!full && !kids.some(el => rowOf(el) > 2)) return 0;
+      return Math.max(1, [...bc.querySelectorAll('.spine')].filter(el => rowOf(el) <= 2).length - 1);
+    };
+    let cap = PHONE ? 15 : 100, maxPiles = 99, scale = 1;
+    // the same window width and pile as last time: start from the fit found then (a redraw happens on every edit)
+    const fitKey = [stack.clientWidth, pile.length, S.settings.spineMode, document.documentElement.dataset.theme].join('|'), memo = shelfMemo.key === fitKey;
+    if (memo) ({cap, maxPiles, scale} = shelfMemo);
+    for (let tries = memo ? 1 : 0; tries < 20; tries++) {
+      drawShelf(cap, maxPiles, scale); const fit = shelfFit(); if (!fit) break;
+      if (tries === 0) { // first guess straight from the widths: how much thinner the spines must be for 3 shelves
+        const bc = stack.querySelector('.bookcase'), room = 3 * (bc.clientWidth - 20) * .94 - DECOR_ROOM;
+        let sw = 0, other = 0;
+        for (const el of bc.children) { const cs = getComputedStyle(el), w = el.offsetWidth + parseFloat(cs.marginLeft) + parseFloat(cs.marginRight); if (el.classList.contains('spine')) sw += w; else other += w; }
+        maxPiles = 3; scale = Math.max(.38, Math.min(.98, (room - Math.min(other, 3 * 130)) / (sw || 1))); continue;
       }
-      html += spineOf(b, i, false);
-      if (!gmode && i % 23 === 11 && i < shown.length - 3) { const set = ORNAMENTS[document.documentElement.dataset.theme] || ORNAMENTS.default, k = set[(i / 23 | 0) % set.length]; html += `<span class="decor orn" aria-hidden="true" style="width:${DECOR[k][0]}px;height:${DECOR[k][1]}px">${DECOR[k][2]}</span>`; }
+      if (scale > .38) scale = Math.max(.38, scale - .03); else cap = Math.min(cap - 1, fit);
     }
-    if (globeG.length || comicG.length) {
-      const pct = g => `${GENRES[g]} ${Math.round(pile.filter(b => (GENRES[b.genre] ? b.genre : 'unknown') === g).length / pile.length * 100)}%`;
-      if (globeG.length) html += `<span class="gx gx-globe" data-g="${globeG.join(' ')}" title="${globeSmallest ? 'Your smallest genre' : `Genres under ${Math.round(100 / SHELF)}% of your unread books`}: ${esc(globeG.map(pct).join(', '))}">${smallGenreSvg(globeG)}</span>`;
-      if (comicG.length) html += `<span class="gx" title="Genres under ${Math.round(50 / SHELF)}% of your unread books: ${esc(comicG.map(pct).join(', '))}">${comicSvg(comicG)}</span>`;
-    }
-    html += '</div>';
-    const gl = $('#genreLegend');
-    if (S.settings.spineMode === 'genre') {
-      const cnt = {}; pile.forEach(b => { const g = GENRES[b.genre] ? b.genre : 'unknown'; cnt[g] = (cnt[g] || 0) + 1; });
-      gl.innerHTML = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a]).map(g => `<span${g === 'nonfiction' ? ` title="${esc([...new Set(pile.filter(b => b.genre === 'nonfiction').map(b => b.genreName).filter(Boolean))].join(', '))}"` : ''}><i style="background:var(--g-${g})"></i>${GENRES[g]} <span class="num muted">${cnt[g]} · ${Math.round(cnt[g] / pile.length * 100)}%</span></span>`).join('')
-        + (pile.some(b => b.genreSrc === 'guess') ? `<span class="muted">${fmtInt(pile.filter(b => b.genreSrc === 'guess').length)} genres are guessed from the book's title, because Amazon has no store page for them.</span>` : '')
-        + (globeG.length || comicG.length ? `<span class="muted">${globeG.length ? (globeSmallest ? `The globe holds your smallest genre, ${esc(GENRES[globeG[0]])}.` : `The globe holds the genres under ${Math.round(100 / SHELF)}%.`) : ''}${globeG.length && comicG.length ? ' ' : ''}${comicG.length ? `The comic holds the ones under ${Math.round(50 / SHELF)}%.` : ''}</span>` : '');
-      gl.hidden = false;
-    } else gl.hidden = true;
-    if (pile.length > shown.length) html += `<div class="more">+ ${fmtInt(pile.length - shown.length)} more that didn't fit on the shelf${S.settings.spineMode === 'genre' ? ', in the same proportions' : ''}</div>`;
-    stack.innerHTML = html;
+    shelfMemo = {key: fitKey, cap, maxPiles, scale};
     requestAnimationFrame(decorShelf);
   }
   $('#fValue').textContent = mask(pileValue); $('#fValue').classList.toggle('masked', !S.showMoney);
@@ -1119,7 +1161,8 @@ function renderStats() {
     $('#fClear').textContent = d.toLocaleDateString(undefined, {month:'short', year:'numeric'});
     $('#fClearL').textContent = `everything read at ${S.settings.pagesPerDay} pages a day (${days > 730 ? (days/365).toFixed(1) + ' years' : fmtInt(days) + ' days'})${QUIP}`;
   } else { $('#fClear').textContent = 'Done'; $('#fClearL').textContent = 'nothing left to read'; }
-  const dated = pile.filter(b => b.date && !b.dateEst).sort((a,b) => a.date.localeCompare(b.date));
+  // never a dictionary or user guide, even with Kindle extras counted: nobody is meant to read those cover to cover
+  const dated = pile.filter(b => b.date && !b.dateEst && b.source !== 'device' && !DEVICE_EXTRA.test(b.title || '')).sort((a,b) => a.date.localeCompare(b.date));
   if (dated.length) {
     const o = dated[0], y = yearsAgo(o.date);
     // Age of the oldest unread book: how long it has sat since you bought it (reading pace doesn't change this)
@@ -1138,9 +1181,11 @@ function renderStats() {
   $('#fRate').nextElementSibling.textContent = 'added vs finished of those, last 12 months';
 
   const verdict = !n ? 'Nothing here yet.' :
-    pct >= 60 ? `You've read less than half of what you own. <strong>${Math.round(pct)}%</strong> of your library has never been opened.` :
-    pct >= 35 ? `A well-stocked shelf. <strong>${Math.round(pct)}%</strong> unread, about ${fmtHours(hoursFor(pilePages))} of reading waiting for you.` :
-    pct > 0 ? `Mostly under control. Only <strong>${Math.round(pct)}%</strong> of your library is unread.` :
+    pct >= 100 ? `Not one book opened yet. <strong>All ${fmtInt(n)}</strong> are still waiting for you.` :
+    pct >= 90 ? `You've barely cracked a spine. <strong>${pctText(pct)}</strong> of your library has never been opened.` :
+    pct >= 60 ? `You've read less than half of what you own. <strong>${pctText(pct)}</strong> of your library has never been opened.` :
+    pct >= 35 ? `A well-stocked shelf. <strong>${pctText(pct)}</strong> unread, about ${fmtHours(hoursFor(pilePages))} of reading waiting for you.` :
+    pct > 0 ? `Mostly under control. Only <strong>${pctText(pct)}</strong> of your library is unread.` :
     'A clean conscience. You have read or started everything you own.';
   $('#verdict').innerHTML = verdict + (estPages ? ` <span class="muted" style="font-size:.85rem">(${fmtInt(estPages)} books use the default page count.)</span>` : '');
 
@@ -1151,7 +1196,7 @@ function renderStats() {
   // status list
   // By status (#6): a small table so books and pages each have a labeled column, with each status's share of the books
   const allBk = order.reduce((a, k) => a + by[k].length, 0), stPages = k => by[k].reduce((a, b) => a + pagesOf(b), 0);
-  const stRows = order.map(k => `<tr><td><i style="background:${STATUS_COLOR[k]}"></i>${STATUS[k]}</td><td>${fmtInt(by[k].length)}<span class="pc">${allBk ? Math.round(by[k].length / allBk * 100) : 0}%</span></td><td>${fmtInt(stPages(k))}</td></tr>`).join('');
+  const stRows = order.map(k => `<tr><td><i style="background:${STATUS_COLOR[k]}"></i>${STATUS[k]}</td><td>${fmtInt(by[k].length)}<span class="pc">${pctText(allBk ? by[k].length / allBk * 100 : 0)}</span></td><td>${fmtInt(stPages(k))}</td></tr>`).join('');
   // The unread pile at a glance (#11): its shortest and longest books, the average length, and how many are quick reads
   const known = pile.filter(b => b.pages > 0).sort((a, b) => a.pages - b.pages);
   const shortB = known[0], longB = known[known.length - 1];
@@ -1199,7 +1244,7 @@ function renderStats() {
   let capped = false;
   if (!keys.length) box.innerHTML = '<p class="muted" style="align-self:center">No purchase dates yet.</p>';
   else {
-    // Stacked bars on a true scale, except unusually tall years: those are cut off (with a break mark and "↑")
+    // Stacked bars on a true scale, except unusually tall years: those are cut off (with a break mark)
     // so one big buying year doesn't flatten the rest. Numbers above bars are always exact.
     const W = Math.max(260, box.clientWidth || 320), H = 170, padL = 2, padR = 2, padT = 22, padB = 22;
     const tot = y => order.reduce((a, k) => a + yrs[y][k], 0);
@@ -1225,7 +1270,7 @@ function renderStats() {
         prevCut = cut;
         if (cut) bars += `<path d="M${x - 2},${base - h + 14} l${bw + 4},-6 M${x - 2},${base - h + 21} l${bw + 4},-6" stroke="var(--paper)" stroke-width="3"/>`;
         lift = cut && prevCut ? (lift ? 0 : 11) : 0; // neighbouring cut-off bars: stagger their labels so they don't collide
-        labels += `<text x="${cx}" y="${base - h - 6 - lift}" text-anchor="middle" class="yn">${t}${cut ? '↑' : ''}</text>`;
+        labels += `<text x="${cx}" y="${base - h - 6 - lift}" text-anchor="middle" class="yn">${t}</text>`;
       }
       if (i % every === 0 || i === keys.length - 1) labels += `<text x="${cx}" y="${H - 6}" text-anchor="middle" class="yy">'${y.slice(2)}</text>`;
       hits += `<rect class="yhit" data-y="${y}" data-i="${i}" x="${padL + slot * i}" y="0" width="${slot}" height="${H}" fill="transparent"/>`;
@@ -1237,7 +1282,7 @@ function renderStats() {
   }
   const undated = bs.filter(b => !b.date).length;
   const baseInfo = yearText('all');
-  const undatedTxt = (undated ? ` <span class="muted">(${fmtInt(undated)} books have no purchase date)</span>` : '') + (capped ? ' <span class="muted">Years marked ↑ are cut off so the others stay readable; the numbers are exact.</span>' : '');
+  const undatedTxt = (undated ? ` <span class="muted">(${fmtInt(undated)} books have no purchase date)</span>` : '') + (capped ? ' <span class="muted">Bars with a break mark are cut off so the others stay readable; the numbers are exact.</span>' : '');
   const cursor = () => box.querySelector('.ycursor');
   // Reading status rings: every year until you point at one, then just that year
   const RC = 2 * Math.PI * 26;
@@ -1250,10 +1295,10 @@ function renderStats() {
     $('#ringsTitle').textContent = y === 'all' ? 'Reading status · all years' : `Reading status · ${y}`;
     $('#ringsTotal').textContent = `${fmtInt(t)} book${t === 1 ? '' : 's'}`;
     rk.forEach(k => {
-      const p = t ? v[k] / t : 0, pct = Math.round(p * 100);
+      const p = t ? v[k] / t : 0;
       $('#rv-' + k).setAttribute('stroke-dasharray', `${v[k] && p * RC < 0.5 ? 0.5 : p * RC} ${RC}`);
       $('#rv-' + k).style.opacity = v[k] ? 1 : 0;
-      $('#rp-' + k).textContent = (v[k] && !pct ? '<1' : pct) + '%';
+      const rp = $('#rp-' + k); rp.textContent = pctText(p * 100); rp.style.fontSize = rp.textContent.length > 4 ? '80%' : ''; // 99.5% needs a little less room
       $('#rn-' + k).textContent = `${fmtInt(v[k])} book${v[k] === 1 ? '' : 's'}`;
     });
   };
@@ -1729,7 +1774,7 @@ function libraryXlsx() {
   const rows = [...S.books].sort((a, b) => (a.title || '').localeCompare(b.title || '')).map(b => [
     b.title || '', b.author || '', STATUS[b.status] || b.status || '', Math.round(b.progress || 0), b.pages > 0 ? b.pages : null,
     hasPaid(b) ? {money: +b.price} : null, b.kp != null ? {money: b.kp} : null, /^\d{4}-\d{2}-\d{2}$/.test(b.date || '') ? {date: b.date} : null,
-    SOURCE_NAME[b.source] || b.source || '', b.genre && b.genre !== 'unknown' ? genreLabel(b) + (b.genreSub && b.genreSub !== genreLabel(b) ? ' › ' + b.genreSub : '') : '', GENRES[b.genre2] || '', (b.tags || []).join(', '), b.rating || null, counted(b) ? 'Yes' : 'No', b.asin || '',
+    b.returned ? 'Returned' : SOURCE_NAME[b.source] || b.source || '', b.genre && b.genre !== 'unknown' ? genreLabel(b) + (b.genreSub && b.genreSub !== genreLabel(b) ? ' › ' + b.genreSub : '') : '', GENRES[b.genre2] || '', (b.tags || []).join(', '), b.rating || null, counted(b) ? 'Yes' : 'No', b.asin || '',
   ]);
   return buildXlsx(header, rows, [46, 24, 11, 11, 8, 11, 13, 14, 18, 20, 16, 40, 8, 10, 13]);
 }

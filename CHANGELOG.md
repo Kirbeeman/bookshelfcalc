@@ -4,27 +4,27 @@ Newest first. The latest release is described in full; earlier ones are listed b
 
 ---
 
-## v2.0 (latest)
+## v2.1.1.0 (latest)
 
-**Shelf of Shame: phones, Google Drive and truer numbers**
+**Signed code, and a truer, tidier shelf**
 
-Everything tested on the beta site goes live.
+Security:
+- **Signed code.** The phone sync bookmark and the sync script now only run code signed with Daniel's signing key, and only if every byte matches what was signed. Someone who broke into the website or its GitHub repository still couldn't make either one run their own code. Set up the phone bookmark once more (**Settings › Set up the bookmark**); the old one keeps working for now and shows a note asking you to. The sync script updates once more through Tampermonkey and from then on fetches signed updates by itself.
+- Every page carries a **Content Security Policy**, so your browser only runs the Shelf of Shame's own code and Google's sign-in, and only connects to this site, Google Fonts and Google Drive.
+- A one-time notice explains the change the first time you open this version.
 
-- **New name and look.** The calculator is now **Shelf of Shame**, with its own icon (a book with its price tag still on; a jack-o'-lantern book in the Halloween theme) and link previews when you share the site.
-- **New theme: Fruit.** Frosted glass panels over a soft, colorful background, following your device's light or dark setting. iPhones, iPads and Macs start in Fruit until you pick a theme.
-- **Phones and iPads, nothing to install.** A **Shelf sync** bookmark reads your books, purchase dates and prices on amazon.com and sends them to the page. One tap on **Set up the bookmark** copies it and walks you through saving it. A [getting-started guide](https://bookshelf.kirbee213.tv/help) covers every device, and there's a step-by-step [iPhone and iPad guide](https://bookshelf.kirbee213.tv/ioshelp).
-- **Google Drive (optional).** Keep your library in one file in your own Drive, so your phone and computers show the same books. Changes made on each are merged book by book.
-- **Truer numbers.** Computers now build your library from Amazon's Content & Devices list, like phones, so prices paid land on the right books. Dictionaries and user guides that came with your Kindle are left out (a Settings checkbox counts them), books with no order behind them count as free, and a book that was listed twice is folded into one.
-- **Settings** shows which version of the app and the sync script you have, and closes when you click outside it.
-- **Smaller things:** genres guessed from titles when Amazon has no page, a 15-book shelf on phones, faster on big libraries, cleaner titles (no more `&amp;`), and the oldest unread book named first.
-- **The sync script also runs in Userscripts**, the free script app for iPhone, iPad and Mac, as well as Tampermonkey.
-
-**This release needs a script update.** The page asks for it the first time you open it. If Tampermonkey then lists both "Kindle Library Calculator" and "Shelf of Shame", delete "Kindle Library Calculator". Your library on this site isn't touched. Libraries kept on the beta site stay there; to bring one over, connect Google Drive on both, or use **Back up library** and **Import a file**.
+The shelf and the numbers:
+- On a computer, the bookcase holds **up to 100 unread books on at most 3 shelves**, with thinner spines when it needs them and room kept for the bookend and decorations.
+- **Truer numbers:** shares near 0% or 100% keep a decimal (99.5%, never a rounded-up 100%), dictionaries that came with a Kindle and books returned to Amazon are left out of the totals, and the oldest-unread card never names a dictionary.
+- New wording when you've barely started your library ("You've barely cracked a spine"), or not started it at all.
+- Status dots in the same **green, yellow and red** in every theme, the Google Drive problem line reads "There is a problem with the sync. Tap to retry.", and the year chart loses the little arrows that looked like 1s.
+- A **getting-started guide for every device** at bookshelf.kirbee213.tv/help.
 
 ---
 
 ## Earlier versions
 
+- **v2.0** Shelf of Shame, phones, Google Drive and truer numbers
 - **v1.52** Behind-the-scenes cleanup
 - **v1.51** Version numbers in Settings, and click outside to close
 - **v1.50** This year so far, and a clearer By status card

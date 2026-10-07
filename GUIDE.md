@@ -166,6 +166,10 @@ Your library lives in the browser you used. Clearing browser data, or using anot
 
 **"Update needed" won't go away.** Press **Update** in the Tampermonkey tab that opened, then come back. If no tab opened: Tampermonkey icon → **Utilities** → **Check for userscript updates**, then reload.
 
+**"Shelf sync stopped: its code could not be checked as genuine."** The phone bookmark refused to run because the code it downloaded didn't match the signed release. Try again in a few minutes (an update may have been half published). If it keeps happening, set the bookmark up again: **Settings › Set up the bookmark**.
+
+**The script stopped answering after an update.** The sync script only runs code signed with Daniel's key. If it can't check the code (for example on a site whose security rules don't allow it), it stops instead of running anything unchecked. Open the browser's console (F12) and look for a line starting with **[Shelf of Shame] Not running**; reinstalling the script from **Settings** fixes most cases.
+
 **"Amazon wants your password again for Content & Devices."** Amazon asks for your password again on its Content & Devices page every so often, even while the rest of amazon.com shows you signed in. Follow the link in the message, sign in if it asks, then press **Retry**. Purchase dates and prices paid both come from that page.
 
 **Kindle library says to sign in to read.amazon.com.** The Kindle reader has its own sign-in. Open read.amazon.com once in the same browser, sign in, then press **Sync now**. Your books still load from Content & Devices in the meantime.
