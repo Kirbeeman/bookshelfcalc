@@ -65,6 +65,7 @@ Open **https://bookshelf.kirbee213.tv** on a computer. The first visit walks you
 | `iphone.html`, `ioshelp/` | The iPhone and iPad guide, at /ioshelp |
 | `privacy.html` | The privacy page |
 | `icon-*.png`, `og.png` | The site icons and the link-preview picture |
+| `speed-dial.png` | A speed dial tile for the site (1024×640), for browsers that let you pick a tile's picture |
 | `GUIDE.md` | The full user guide |
 | `CHANGELOG.md` | What changed in each version |
 | `src/` | Source files the site and script are built from, with build and release steps (`src/README.md`) |
