@@ -4,26 +4,19 @@ Newest first. The latest release is described in full; earlier ones are listed b
 
 ---
 
-## v2.1.1.0 (latest)
+## v2.1.1.1 (latest)
 
-**Signed code, and a truer, tidier shelf**
+**Leave a book out by hand**
 
-Security:
-- **Signed code.** The phone sync bookmark and the sync script now only run code signed with Daniel's signing key, and only if every byte matches what was signed. Someone who broke into the website or its GitHub repository still couldn't make either one run their own code. Set up the phone bookmark once more (**Settings › Set up the bookmark**); the old one keeps working for now and shows a note asking you to. The sync script updates once more through Tampermonkey and from then on fetches signed updates by itself.
-- Every page carries a **Content Security Policy**, so your browser only runs the Shelf of Shame's own code and Google's sign-in, and only connects to this site, Google Fonts and Google Drive.
-- A one-time notice explains the change the first time you open this version.
-
-The shelf and the numbers:
-- On a computer, the bookcase holds **up to 100 unread books on at most 3 shelves**, with thinner spines when it needs them and room kept for the bookend and decorations.
-- **Truer numbers:** shares near 0% or 100% keep a decimal (99.5%, never a rounded-up 100%), dictionaries that came with a Kindle and books returned to Amazon are left out of the totals, and the oldest-unread card never names a dictionary.
-- New wording when you've barely started your library ("You've barely cracked a spine"), or not started it at all.
-- Status dots in the same **green, yellow and red** in every theme, the Google Drive problem line reads "There is a problem with the sync. Tap to retry.", and the year chart loses the little arrows that looked like 1s.
-- A **getting-started guide for every device** at bookshelf.kirbee213.tv/help.
+- Every book in **Your library** has a small **leave out** link next to its author, and **Edit book** has a **Leave this book out** checkbox. A left-out book stays in your library with a "left out" pill, but not in the totals, value, charts or Shelf of Shame. **count it again** brings it back, and syncs never undo it.
+- The "Not counted" tooltip lists the books you left out, and returned books get a "returned" pill in the list.
+- No reinstall needed: the sync script picks this up by itself (signed release).
 
 ---
 
 ## Earlier versions
 
+- **v2.1.1.0** Signed code, and a truer, tidier shelf
 - **v2.0** Shelf of Shame, phones, Google Drive and truer numbers
 - **v1.52** Behind-the-scenes cleanup
 - **v1.51** Version numbers in Settings, and click outside to close

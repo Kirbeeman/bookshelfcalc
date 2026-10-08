@@ -444,6 +444,7 @@ document.body.innerHTML = `<div class="wrap">
       <label>Genre<select id="eGenre"></select></label>
       <label>Second genre<select id="eGenre2"></select></label>
       <p class="etags" id="eTags" hidden></p>
+      <label class="check full"><input type="checkbox" id="eExclude"> Leave this book out. It stays in your library, but not in the totals, value, charts or Shelf of Shame.</label>
       <label>Rating<select id="eRating"><option value="0">No rating</option><option value="1">★</option><option value="2">★★</option><option value="3">★★★</option><option value="4">★★★★</option><option value="5">★★★★★</option></select></label>
     </div>
     <div class="dlg-foot">
@@ -730,6 +731,7 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background
 .newnote{font-size:.88rem;display:flex;align-items:center;gap:8px}
 .newnote i{width:12px;height:12px;border-radius:2px;outline:2px solid var(--warn);outline-offset:1px;background:var(--cloth-2);display:inline-block}
 .spine.new{outline:3px solid var(--warn);outline-offset:1px;position:relative;z-index:1}
+.rowex{background:none;border:0;padding:0 0 0 10px;color:var(--muted);font:inherit;font-size:.74rem;text-decoration:underline dotted;cursor:pointer;opacity:.75}.rowex:hover,.rowex:focus-visible{opacity:1;color:var(--ink)}
 .linkbtn{background:none;border:0;padding:0;color:var(--shame);text-decoration:underline;font:inherit;cursor:pointer}
 .pill.stalled{color:var(--shame);border-color:var(--shame)}
 .pill.new{color:var(--warn);border-color:var(--warn)}
@@ -1048,7 +1050,7 @@ const DEVICE_EXTRA = /dictionar|diccionario|dictionnaire|dicion[aá]rio|w[oö]rt
 const isExtra = b => !b.sourceManual && DEVICE_EXTRA.test(b.title || '') && !(hasPaid(b) && +b.price > 0);
 function markExtras() { let n = 0; for (const b of S.books) if (b.source === 'purchase' && isExtra(b)) { b.source = 'device'; n++; } return n; }
 const counted = b => {
-  if (b.returned) return false;
+  if (b.excluded || b.returned) return false;
   if (b.source === 'sample' && !S.settings.samples) return false;
   if (b.source === 'device' && !S.settings.extras) return false;
   if ((b.source === 'ku' || b.source === 'prime' || b.source === 'other' || b.source === 'shared') && !S.settings.borrowed) return false;
@@ -1301,8 +1303,8 @@ function renderStats() {
 
   $('#tBooks').textContent = fmtInt(n);
   const hidden = S.books.length - n;
-  const why = {returned:['returned to Amazon (or no longer in your Amazon library)', 'returned to Amazon (or no longer in your Amazon library)'], shared:['shared with you (Family Library)'], ku:['Kindle Unlimited'], prime:['Prime Reading'], other:['borrowed or library loan', 'borrowed or library loans'], sample:['sample', 'samples'], device:['dictionary or user guide that came with your Kindle', 'dictionaries and user guides that came with your Kindle']};
-  const nc = {}; S.books.forEach(b => { if (!counted(b)) { const k = b.returned ? 'returned' : b.source; nc[k] = (nc[k] || 0) + 1; } });
+  const why = {excluded:['left out by you', 'left out by you'], returned:['returned to Amazon (or no longer in your Amazon library)', 'returned to Amazon (or no longer in your Amazon library)'], shared:['shared with you (Family Library)'], ku:['Kindle Unlimited'], prime:['Prime Reading'], other:['borrowed or library loan', 'borrowed or library loans'], sample:['sample', 'samples'], device:['dictionary or user guide that came with your Kindle', 'dictionaries and user guides that came with your Kindle']};
+  const nc = {}; S.books.forEach(b => { if (!counted(b)) { const k = b.excluded ? 'excluded' : b.returned ? 'returned' : b.source; nc[k] = (nc[k] || 0) + 1; } });
   const tip = `<span class="tipbox" role="tooltip"><strong>Not counted</strong> means books you didn't buy yourself. They stay in your library but are left out of the totals, value, charts and Shelf of Shame:<ul>${Object.keys(why).filter(k => nc[k]).map(k => `<li>${nc[k]} ${why[k][nc[k] === 1 ? 0 : why[k].length - 1]}</li>`).join('')}</ul>See them with the <strong>Not counted</strong> button under Your library. To include them, turn them on in <strong>Settings</strong>, or click a book and change <strong>How you got it</strong>.</span>`;
   $('#tBooksSub').innerHTML = `${fmtInt(by.finished.length)} finished` + (hidden ? ` · <span class="tip" tabindex="0">${hidden} not counted${tip}</span>` : '');
   const mask = v => S.showMoney ? fmtMoney(v) : '••••••';
@@ -1656,11 +1658,11 @@ function renderShelf() {
   document.querySelectorAll('th button').forEach(b => { if (b.dataset.k === k) b.dataset.dir = dir; else delete b.dataset.dir; });
   const shown = list.slice(0, S.limit);
   $('#rows').innerHTML = shown.length ? shown.map(b => {
-    const src = (SOURCE[b.source] ? `<span class="pill">${SOURCE[b.source]}</span>` : '') + (isNew(b) ? '<span class="pill new">new</span>' : '') + (isStalled(b) ? `<span class="pill stalled" title="Started ${b.readingSince} and still not finished. Mark it Finished, or DNF if you've given up on it.">stalled 1 yr+</span>` : '');
+    const src = (b.excluded ? '<span class="pill" title="You left this book out of the totals. Click its title to bring it back.">left out</span>' : b.returned ? '<span class="pill" title="No longer in your Amazon library, so it\'s left out of the totals">returned</span>' : '') + (SOURCE[b.source] ? `<span class="pill">${SOURCE[b.source]}</span>` : '') + (isNew(b) ? '<span class="pill new">new</span>' : '') + (isStalled(b) ? `<span class="pill stalled" title="Started ${b.readingSince} and still not finished. Mark it Finished, or DNF if you've given up on it.">stalled 1 yr+</span>` : '');
     const pr = hasPaid(b) ? fmtMoney(+b.price) : b.kp != null && b.source !== 'free' && b.source !== 'device' ? `<span class="est" title="Today's Kindle price (not what you paid)">now ${fmtMoney(b.kp)}</span>` : (b.source === 'purchase' ? `<span class="est" title="Guess from Settings">~${fmtMoney(S.settings.defPrice)}</span>` : '—');
     const pg = b.pages > 0 ? fmtInt(b.pages) : `<span class="est">~${S.settings.defPages}</span>`;
     return `<tr data-id="${esc(b.id)}">
-      <td style="min-width:220px"><div class="t-title" data-edit="${esc(b.id)}" tabindex="0">${esc(b.title)}${src}</div><div class="t-author">${esc(b.author || '')}</div>${b.genre && b.genre !== 'unknown' ? `<div class="t-genre"><span class="gsw"><i style="background:var(--g-${GENRES[b.genre] ? b.genre : 'unknown'})"></i>${esc(genreLabel(b))}${b.genreSrc === 'guess' ? '<span class="guessed" title="No Amazon store page for this book, so the genre is guessed from its title. Click the title to change it.">guessed</span>' : ''}</span>${b.genre2 && GENRES[b.genre2] && b.genre2 !== b.genre ? `<span class="plus">+</span><span class="gsw"><i style="background:var(--g-${b.genre2})"></i>${esc(GENRES[b.genre2])}</span>` : ''}${tagsShown(b).map(t => `<button type="button" class="tag${t === S.tag ? ' on' : ''}" data-tag="${esc(t)}">${esc(t)}</button>`).join('')}</div>` : ''}</td>
+      <td style="min-width:220px"><div class="t-title" data-edit="${esc(b.id)}" tabindex="0">${esc(b.title)}${src}</div><div class="t-author">${esc(b.author || '')}<button type="button" class="rowex" data-ex="${esc(b.id)}" title="${b.excluded ? 'Count this book in the totals again' : 'Leave this book out of the totals, value, charts and Shelf of Shame'}">${b.excluded ? 'count it again' : 'leave out'}</button></div>${b.genre && b.genre !== 'unknown' ? `<div class="t-genre"><span class="gsw"><i style="background:var(--g-${GENRES[b.genre] ? b.genre : 'unknown'})"></i>${esc(genreLabel(b))}${b.genreSrc === 'guess' ? '<span class="guessed" title="No Amazon store page for this book, so the genre is guessed from its title. Click the title to change it.">guessed</span>' : ''}</span>${b.genre2 && GENRES[b.genre2] && b.genre2 !== b.genre ? `<span class="plus">+</span><span class="gsw"><i style="background:var(--g-${b.genre2})"></i>${esc(GENRES[b.genre2])}</span>` : ''}${tagsShown(b).map(t => `<button type="button" class="tag${t === S.tag ? ' on' : ''}" data-tag="${esc(t)}">${esc(t)}</button>`).join('')}</div>` : ''}</td>
       <td><select class="st ${b.status}" data-st="${esc(b.id)}" aria-label="Status">${Object.entries(STATUS).map(([v,l]) => `<option value="${v}"${v === b.status ? ' selected' : ''}>${l}</option>`).join('')}</select></td>
       <td><div class="prog"><div class="track"><i style="width:${b.progress || 0}%"></i></div><span class="num muted" style="font-size:.75rem">${Math.round(b.progress || 0)}%</span></div></td>
       <td class="r num">${pg}</td>
@@ -1693,7 +1695,7 @@ $('#rows').addEventListener('change', e => {
   if (b.status === 'unread') b.progress = 0;
   leaveDemoForEdit(); renderAll(); scheduleSave();
 });
-$('#rows').addEventListener('click', e => { const g = e.target.closest('[data-tag]'); if (g) { S.tag = S.tag === g.dataset.tag ? '' : g.dataset.tag; S.limit = PAGE_ROWS; renderShelf(); return; } const t = e.target.closest('[data-edit]'); if (t) openEdit(t.dataset.edit); });
+$('#rows').addEventListener('click', e => { const x = e.target.closest('[data-ex]'); if (x) { const bk = S.books.find(b => b.id === x.dataset.ex); if (bk) { bk.excluded = !bk.excluded; leaveDemoForEdit(); renderAll(); scheduleSave(); toast(bk.excluded ? 'Left out of the totals' : 'Counted again'); } return; } const g = e.target.closest('[data-tag]'); if (g) { S.tag = S.tag === g.dataset.tag ? '' : g.dataset.tag; S.limit = PAGE_ROWS; renderShelf(); return; } const t = e.target.closest('[data-edit]'); if (t) openEdit(t.dataset.edit); });
 $('#rows').addEventListener('keydown', e => { const t = e.target.closest('[data-edit]'); if (t && e.key === 'Enter') openEdit(t.dataset.edit); });
 function leaveDemoForEdit() { /* edits to the example library stay on this page only */ }
 
@@ -1706,7 +1708,7 @@ function openEdit(id) {
   $('#eTitle').value = b.title || ''; $('#eAuthor').value = b.author || ''; $('#eAsin').value = b.asin || '';
   $('#eStatus').value = b.status; $('#eProgress').value = Math.round(b.progress || 0);
   $('#ePages').value = b.pages || ''; $('#ePrice').value = b.price ?? ''; $('#eDate').value = b.date || '';
-  $('#eSource').value = b.source || 'purchase'; $('#eRating').value = b.rating || 0;
+  $('#eSource').value = b.source || 'purchase'; $('#eRating').value = b.rating || 0; $('#eExclude').checked = !!b.excluded;
   $('#eGenre').innerHTML = '<option value="">Look up automatically</option>' + Object.entries(GENRES).filter(([k]) => k !== 'unknown').map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
   $('#eGenre').value = b.genreSrc === 'manual' ? b.genre : '';
   $('#eGenre2').innerHTML = '<option value="">Look up automatically</option><option value="none">None</option>' + Object.entries(GENRES).filter(([k]) => k !== 'unknown' && k !== 'nonfiction').map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
@@ -1727,7 +1729,7 @@ $('#editForm').addEventListener('submit', e => {
     pages: num($('#ePages').value), price: num($('#ePrice').value), date: $('#eDate').value || '',
     ...(($('#eDate').value || '') !== ((editing && editing.date) || '') ? {dateManual: true, dateEst: false} : {}),
     ...(editing && String($('#ePrice').value) !== String(editing.price ?? '') ? {priceManual: true} : {}),
-    source: $('#eSource').value, rating: +$('#eRating').value, lock: true,
+    source: $('#eSource').value, rating: +$('#eRating').value, lock: true, excluded: $('#eExclude').checked,
     ...(editing && $('#eSource').value !== editing.source ? {sourceManual: true} : {}),
     ...($('#eGenre').value ? {genre: $('#eGenre').value, genreSrc: 'manual'} : (editing && editing.genreSrc === 'manual' ? {genre: '', genreSrc: '', genreV: 0} : {})),
   };
@@ -1771,7 +1773,7 @@ function applyTheme(t) {
   // Tab and home-screen icon: the book with a cobweb in the Halloween theme, the book with its price tag otherwise
   // Swapping in a new <link> (not just changing href) makes Safari and Firefox notice too
   const ico = t === 'halloween' ? 'web' : 'tag';
-  [['favicon', `icon-${ico}.png?v=2.1.1.0`], ['touchicon', `icon-${ico}-180.png?v=2.1.1.0`]].forEach(([id, href]) => {
+  [['favicon', `icon-${ico}.png?v=2.1.1.1`], ['touchicon', `icon-${ico}-180.png?v=2.1.1.1`]].forEach(([id, href]) => {
     const old = document.getElementById(id); if (!old || old.getAttribute('href') === href) return;
     const n = old.cloneNode(); n.setAttribute('href', href); old.replaceWith(n);
   });
@@ -2344,7 +2346,7 @@ async function lookupBookInfo() {
 }
 
 // ---------- tell people when their sync script is behind the site ----------
-const LATEST_SCRIPT = '2.1.1.0';
+const LATEST_SCRIPT = '2.1.1.1';
 // Beta builds carry a fifth number, the beta count: 2.0.0.0.1 is shown as "2.0 beta 1" (the live build it's heading toward, then which beta)
 const verLabel = v => { const p = String(v || '').split('.'); if (p.length < 5) return String(v || ''); const b = p.pop(); while (p.length > 2 && p[p.length - 1] === '0') p.pop(); return p.join('.') + ' beta ' + b; };
 const SCRIPT_URL = 'https://raw.githubusercontent.com/Kirbeeman/bookshelfcalc/main/kindle-library-calculator.user.js';
@@ -2430,6 +2432,7 @@ const lsSet1 = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.r
 
 // ---------- what's new (shown in Settings) ----------
 const CHANGES = [
+  ['2.1.1.1', ['Leave a book out by hand: click its title and tick "Leave this book out". It stays in your library (marked "left out") but not in the totals, value, charts or Shelf of Shame']],
   ['2.1.1.0', ['Signed code: the phone bookmark and the sync script only run code signed with the Shelf of Shame key. Set up the bookmark once more, and update the sync script once', 'A Content Security Policy on every page, and a getting-started guide for every device at /help', 'Up to 100 unread books on at most 3 shelves, with the decorations kept', 'Truer numbers: 99.5% instead of a rounded 100%, dictionaries and returned books left out, and no dictionary as your oldest unread book', 'Status dots in the same green, yellow and red in every theme']],
   ['2.1.0.0.10', ['Dictionaries stay out of the count even when a copy of your library from an older version (through Google Drive) brings them back as purchases']],
   ['2.1.0.0.9', ['Your oldest unread book is never a dictionary or user guide, even with Kindle extras counted']],

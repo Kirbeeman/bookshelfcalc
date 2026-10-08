@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Shelf of Shame
 // @namespace    kindle-library-calculator
-// @version      2.1.1.0
+// @version      2.1.1.1
 // @downloadURL  none
 // @description  Library value, reading time and a Shelf of Shame for your Kindle books, kept in sync with your Goodreads shelves.
 // @match        https://bookshelf.kirbee213.tv/*
